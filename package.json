@@ -1,0 +1,13 @@
+{
+  "name": "aiway-vercel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:html && npm run test:server",
+    "test:html": "htmlhint index.html",
+    "test:server": "node --check api/_utils.js && node --check api/ai.js && node --check api/models.js && node --check api/search.js && node --check api/health.js"
+  },
+  "devDependencies": {
+    "htmlhint": "^1.6.3"
+  }
+}
