@@ -81,11 +81,13 @@ async function ensureVercelProject(token,teamId,{name,fullRepo}){
   if(existing)return{project:existing,reused:true,gitLinked:!!existing.link};
   return{...(await createVercelProject(token,teamId,{name,fullRepo})),reused:false};
 }
-async function createProjectEnv(token,teamId,projectId,names=[]){
-  const unique=[...new Set((names||[]).map(x=>String(x||'').trim()).filter(Boolean))];
-  const envs=unique.map(key=>({key,value:process.env[key],type:'encrypted',target:['production','preview']})).filter(x=>typeof x.value==='string'&&x.value.length);
+async function createProjectEnv(token,teamId,projectId,names=[],supplied={}){
+  const unique=[...new Set((names||[]).map(x=>String(x||'').trim().toUpperCase().replace(/[^A-Z0-9_]/g,'_')).filter(Boolean))];
+  const secretMap=supplied&&typeof supplied==='object'&&!Array.isArray(supplied)?supplied:{};
+  const envs=unique.map(key=>{const direct=typeof secretMap[key]==='string'?secretMap[key]:undefined;const fallback=process.env[key];const value=direct!==undefined?direct:fallback;return{key,value,type:'encrypted',target:['production','preview']}}).filter(x=>typeof x.value==='string'&&x.value.length);
   if(!envs.length)return{created:[],missing:unique};
-  await apiFetch(`${VERCEL_API}/v10/projects/${encodeURIComponent(projectId)}/env${teamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify(envs)},'Vercel environment variables');
+  const suffix=teamQuery(teamId),url=`${VERCEL_API}/v10/projects/${encodeURIComponent(projectId)}/env${suffix}${suffix?'&':'?'}upsert=true`;
+  await apiFetch(url,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify(envs)},'Vercel environment variables');
   return{created:envs.map(x=>x.key),missing:unique.filter(k=>!envs.some(x=>x.key===k))};
 }
 
@@ -162,7 +164,7 @@ export default async function handler(req,res){
     project=vp.project;
 
     stage='vercel_environment';
-    const environment=await createProjectEnv(vercelToken,teamId,project.id||project.name,input.environmentVariables||[]);
+    const environment=await createProjectEnv(vercelToken,teamId,project.id||project.name,input.environmentVariables||[],input.environmentSecrets||{});
 
     stage='vercel_deployment';
     let deployment,deploymentMode='git',gitDeploymentError=null;
