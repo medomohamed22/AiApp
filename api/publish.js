@@ -79,6 +79,16 @@ async function createGitHubRepo(token, { name, description, privateRepo }) {
   }, 'GitHub create repository');
 }
 
+async function createUniqueGitHubRepo(token, options) {
+  try {
+    return await createGitHubRepo(token, options);
+  } catch (error) {
+    if (error.status !== 422) throw error;
+    const suffix = Math.random().toString(36).slice(2, 7);
+    return createGitHubRepo(token, { ...options, name: cleanName(`${options.name}-${suffix}`) });
+  }
+}
+
 async function putGitHubFile(token, owner, repo, file, branch='main') {
   const path = safePath(file.path);
   const content = Buffer.from(String(file.content ?? ''), 'utf8').toString('base64');
@@ -123,7 +133,7 @@ async function createProjectEnv(token, teamId, projectId, names=[]) {
   return { created: envs.map(x => x.key), missing: unique.filter(k => !envs.some(x => x.key === k)) };
 }
 
-async function createDeployment(token, teamId, { project, repoId, ref='main' }) {
+async function createGitDeployment(token, teamId, { project, repoId, ref='main' }) {
   const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
   return apiFetch(`${VERCEL_API}/v13/deployments${query}`, {
     method: 'POST',
@@ -139,7 +149,26 @@ async function createDeployment(token, teamId, { project, repoId, ref='main' }) 
       },
       withLatestCommit: true
     })
-  }, 'Vercel deployment');
+  }, 'Vercel Git deployment');
+}
+
+async function createDirectDeployment(token, teamId, { project, files }) {
+  const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
+  const inlineFiles = files.map(file => ({
+    file: safePath(file.path),
+    data: Buffer.from(String(file.content ?? ''), 'utf8').toString('base64'),
+    encoding: 'base64'
+  }));
+  return apiFetch(`${VERCEL_API}/v13/deployments${query}`, {
+    method: 'POST',
+    headers: vercelHeaders(token),
+    body: JSON.stringify({
+      name: project.name,
+      project: project.id,
+      target: 'production',
+      files: inlineFiles
+    })
+  }, 'Vercel direct deployment');
 }
 
 async function waitForDeployment(token, teamId, deploymentId, timeoutMs=90000) {
@@ -185,7 +214,7 @@ export default async function handler(req, res) {
     const description = String(input.description || 'Published by AiWay').slice(0, 350);
 
     const githubUser = await getGitHubUser(githubToken);
-    const repo = await createGitHubRepo(githubToken, {
+    const repo = await createUniqueGitHubRepo(githubToken, {
       name: repoName,
       description,
       privateRepo: !!input.private
@@ -199,11 +228,25 @@ export default async function handler(req, res) {
     const project = await createVercelProject(vercelToken, teamId, { name: projectName, fullRepo });
 
     const environment = await createProjectEnv(vercelToken, teamId, project.id || project.name, input.environmentVariables || []);
-    const deployment = await createDeployment(vercelToken, teamId, {
-      project,
-      repoId: repo.id,
-      ref: repo.default_branch || 'main'
-    });
+
+    // Prefer Git-based deployment when the Vercel GitHub integration can see the new repo.
+    // If it cannot (common when the GitHub App is installed on selected repositories),
+    // fall back to deploying the same source files directly through Vercel's REST API.
+    let deployment;
+    let deploymentMode = 'git';
+    let gitDeploymentError = null;
+    try {
+      deployment = await createGitDeployment(vercelToken, teamId, {
+        project,
+        repoId: repo.id,
+        ref: repo.default_branch || 'main'
+      });
+    } catch (error) {
+      gitDeploymentError = error.message || String(error);
+      deploymentMode = 'direct';
+      deployment = await createDirectDeployment(vercelToken, teamId, { project, files });
+    }
+
     const finalDeployment = deployment?.id
       ? await waitForDeployment(vercelToken, teamId, deployment.id)
       : deployment;
@@ -225,7 +268,9 @@ export default async function handler(req, res) {
         projectId: project.id,
         projectName: project.name,
         deploymentId: finalDeployment?.id || deployment?.id || null,
-        url: productionUrl
+        url: productionUrl,
+        deploymentMode,
+        gitDeploymentFallbackReason: gitDeploymentError || undefined
       },
       environment,
       message: readyState === 'READY' ? 'Website published successfully.' : 'Deployment created; it may still be building.'
