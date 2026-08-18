@@ -393,7 +393,7 @@ const DEFAULT_SYSTEM=`أنت مساعد ذكاء اصطناعي واحد قاد�
 - لا تدّعي تنفيذ أداة إذا لم تحصل على نتيجة منها.
 - عند وجود معلومات متغيرة زمنيًا استخدم web_search إذا كان متاحًا. Search Auto Router داخل التطبيق يقرر تلقائيًا هل يحتاج الطلب Web فقط أم Web + Images؛ لا تطلب صورًا منفصلة إلا إذا كانت مفيدة بصريًا.
 - احترم صلاحيات الأدوات وبيانات المستخدم المحلية.
-- عندما يطلب المستخدم إنشاء موقع ونشره على GitHub/Vercel: أنشئ ملفات الموقع أولًا عبر artifact_save داخل المشروع النشط (ويجب وجود index.html)، ثم استخدم publish_project مرة واحدة فقط بعد اكتمال الملفات. لا تدّع النشر قبل أن تعيد الأداة رابط GitHub ورابط Vercel.`;
+- عندما يطلب المستخدم إنشاء موقع ونشره على GitHub/Vercel: أنشئ ملفات الموقع أولًا عبر artifact_save داخل المشروع النشط (ويجب وجود index.html)، ثم استخدم publish_project مرة واحدة فقط بعد اكتمال الملفات. لا تدّع النشر قبل أن تعيد الأداة رابط GitHub ورابط Vercel. إذا أعادت الأداة روابط فعلية فاعرضها بوضوح. وإذا فشلت الأداة، انقل رسالة الخطأ كما هي ولا تقل إن إنشاء الـRepository فشل إلا إذا قالت الأداة ذلك تحديدًا.`;
 const DEFAULT_SKILL=`---\nname: frontend-quality\ndescription: Review or build modern frontend UI with accessibility, responsive behavior, and robust interaction states.\nversion: 1.0\ntags: [frontend, ui, ux]\n---\n# Frontend Quality\n\n## When to use\nUse for building or reviewing browser interfaces.\n\n## Instructions\n1. Preserve the requested functionality before visual polish.\n2. Design mobile-first and verify keyboard/focus behavior.\n3. Include loading, empty, error, disabled, hover, and active states where relevant.\n4. Keep information hierarchy clear; avoid decorative UI that competes with the task.\n5. Prefer semantic HTML and accessible labels.\n\n## Verification\n- No horizontal overflow on small screens.\n- Interactive elements have visible focus.\n- Critical text maintains readable contrast.\n- Main user flow works without a mouse.`;
 const defaults={settings:{provider:"gemini",model:"gemini-2.5-flash",systemPrompt:DEFAULT_SYSTEM,temperature:.35,maxRounds:7,maxOutputTokens:8192,historyLimit:30,webEnabled:false,toolsEnabled:true,skillsAuto:true,memoryEnabled:true,activeProjectId:null,contextMode:"smart",contextCharBudget:50000,modelRouting:"fixed",fastModel:"",qualityModel:"",searchRouting:"auto",visualImageLimit:4}, toolPermissions:{skill_list:"auto",skill_read:"auto",web_search:"ask",memory_save:"ask",memory_search:"auto",artifact_list:"auto",artifact_read:"auto",artifact_save:"ask",publish_project:"ask"}};
 let db,state=structuredClone(defaults),activeChatId=null,pendingFiles=[],controller=null,editingSkillId=null,editingMcpId=null,editingProjectId=null,editingArtifactId=null,editingHttpToolId=null,askResolver=null,loadedModels=[],slashItems=[],slashIndex=0,streamText="",streamDisplayText="",streamRAF=0,streamLastPaint=0,streamActivityKind="",streamSearchQuery="",followStream=true,runtimeModelOverride="",currentRunSources=[],currentRunVisionImages=[],runtimeUserQuery="",currentSearchRoute="web",runStartedAt=0,firstTextAt=0,publishAccessKey="";
@@ -508,7 +508,10 @@ async function publishActiveProject(args={}){
   const project=await idbGet("projects",state.settings.activeProjectId);
   const r=await fetch("/api/publish",{method:"POST",headers:{"Content-Type":"application/json","X-AiWay-Publish-Key":publishAccessKey},body:JSON.stringify({repoName:args.repoName,projectName:args.projectName||args.repoName,description:args.description||project?.instructions||`Published from AiWay project ${project?.name||""}`,private:!!args.private,environmentVariables:Array.isArray(args.environmentVariables)?args.environmentVariables:[],files}),signal:controller?.signal});
   const d=await r.json().catch(()=>({}));
-  if(!r.ok)throw new Error(d.error||`Publish HTTP ${r.status}`);
+  if(!r.ok){
+    const extra=[d.stage?`المرحلة: ${d.stage}`:"",d.partial?.repository?.url?`GitHub: ${d.partial.repository.url}`:"",d.partial?.vercel?.projectUrl?`Vercel Project: ${d.partial.vercel.projectUrl}`:""].filter(Boolean).join(" | ");
+    throw new Error(`${d.error||`Publish HTTP ${r.status}`}${extra?` — ${extra}`:""}`);
+  }
   return d;
 }
 
