@@ -5,6 +5,28 @@ import { allowMethod, env, json, pipeFetch } from './_utils.js';
 // the surrounding core code.
 export const EVOLUTION_SKILLS = {
   // AIWAY_EVOLUTION_SKILLS_START
+  "fullstack-state-architecture-planner": {
+    name: "Advanced Full-Stack Architecture and State Management Skill",
+    description: "Guides AiWay through structured procedural design patterns for state synchronization, modular component decomposition, and robust client-side routing across multi-page applications.",
+    version: "1.0.0",
+    tags: [
+      "architecture",
+      "state-management",
+      "fullstack",
+      "routing",
+      "modular",
+      "scalability"
+    ],
+    domains: [
+      "architecture-planning",
+      "frontend-reasoning",
+      "backend-reasoning",
+      "code-quality"
+    ],
+    userValue: 89,
+    selfImprovementValue: 93,
+    content: "---\nname: \"Advanced Full-Stack Architecture and State Management Skill\"\ndescription: \"Procedural methodology for designing robust multi-page web applications with clean component boundaries, predictable state synchronization, and reliable API routing.\"\nversion: \"1.0.0\"\ntags:\n  - architecture\n  - state-management\n  - fullstack\n  - routing\n  - modular\ndomains:\n  - architecture-planning\n  - frontend-reasoning\n  - backend-reasoning\n---\n\n# Advanced Full-Stack Architecture & State Management\n\n## 1. Modular Component Decomposition\n- **Single Responsibility Principle**: Ensure every generated view or component manages a distinct domain entity.\n- **Container & Presentational Separation**: Isolate data fetching and business logic (containers) from pure rendering and UI layout (presentational components).\n- **API Boundary Cleanliness**: Standardize request/response shapes across all endpoints to maintain transparent contracts between client views and server handlers.\n\n## 2. Client-Side State Synchronization\n- **Centralized Store Pattern**: Maintain a single source of truth for global session and application configuration.\n- **Reactive Updates**: Trigger targeted UI re-renders through deterministic state subscription listeners rather than wholesale DOM replacement.\n- **Local Persistence**: Gracefully cache non-sensitive user state in `localStorage` or session storage with fallback defaults for resilience.\n\n## 3. Scalable Routing & Navigation\n- **Hash or History Routing**: Implement robust view switching that preserves browser history states and deep-link bookmarks.\n- **Lazy View Initialization**: Mount and unmount view controllers dynamically to optimize memory consumption and execution speed.\n- **Error Boundaries**: Wrap view renderers in defensive try/catch blocks with friendly fallback UI states for unexpected exceptions.",
+  },
   // AIWAY_EVOLUTION_SKILLS_END
 };
 
