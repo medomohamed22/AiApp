@@ -115,6 +115,142 @@ export const EVOLUTION_TOOLS = {
       };
     },
   },
+  "context-compression-relevance-ranker": {
+    name: "Repository Context Compression & Relevance Ranking Tool",
+    description: "Takes repository file excerpts, scores them against task requirements using keyword overlap and recency metrics, and returns a prioritized, compressed context summary to prevent context window token overflow.",
+    method: "POST",
+    tags: [
+      "context",
+      "compression",
+      "ranking",
+      "relevance",
+      "tokens",
+      "optimization",
+      "memory"
+    ],
+    domains: [
+      "context-management",
+      "tool-selection",
+      "code-quality",
+      "architecture-planning"
+    ],
+    userValue: 89,
+    selfImprovementValue: 94,
+    evolutionSafe: true,
+    evolutionHint: "Use this tool to rank, prune, and compress file excerpts or code snippets against a specific task description before passing them into LLM context prompts.",
+    schema: {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "The task or query description to score relevance against."
+        },
+        "files": {
+          "type": "array",
+          "description": "Array of file objects with path, content, and optional updatedAt timestamp.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ]
+          }
+        },
+        "maxTokensApprox": {
+          "type": "number",
+          "description": "Approximate maximum character/token budget for the compressed summary. Defaults to 4000."
+        }
+      },
+      "required": [
+        "task",
+        "files"
+      ]
+    },
+    run: async (args, context) => {
+      const task = String(args.task || '').toLowerCase();
+            const files = Array.isArray(args.files) ? args.files : [];
+            const maxChars = Number(args.maxTokensApprox || 4000) * 4; // rough char to token estimate
+            
+            const taskKeywords = Array.from(new Set(task.split(/\W+/).filter(w => w.length > 2)));
+            
+            const scored = files.map(file => {
+              const path = String(file.path || 'unknown');
+              const content = String(file.content || '');
+              const contentLower = content.toLowerCase();
+              
+              let keywordMatches = 0;
+              for (const kw of taskKeywords) {
+                if (contentLower.includes(kw)) keywordMatches++;
+                if (path.toLowerCase().includes(kw)) keywordMatches += 2;
+              }
+              
+              let recencyScore = 0;
+              if (file.updatedAt) {
+                const timeDiff = Date.now() - new Date(file.updatedAt).getTime();
+                if (!isNaN(timeDiff)) {
+                  recencyScore = Math.max(0, 100 - Math.floor(timeDiff / (1000 * 60 * 60 * 24))); // decay over days
+                }
+              }
+              
+              const score = (keywordMatches * 10) + (recencyScore * 0.1) + (content.length > 0 ? 1 : 0);
+              return {
+                path,
+                content,
+                score,
+                keywordMatches,
+                length: content.length
+              };
+            });
+            
+            scored.sort((a, b) => b.score - a.score);
+            
+            let totalChars = 0;
+            const includedFiles = [];
+            const excludedFiles = [];
+            
+            for (const item of scored) {
+              if (totalChars + item.length <= maxChars || includedFiles.length === 0) {
+                totalChars += item.length;
+                includedFiles.push({
+                  path: item.path,
+                  score: item.score,
+                  keywordMatches: item.keywordMatches,
+                  content: item.content
+                });
+              } else {
+                excludedFiles.push({
+                  path: item.path,
+                  score: item.score,
+                  reason: 'Exceeded approximate token/character budget'
+                });
+              }
+            }
+            
+            return {
+              success: true,
+              summaryStats: {
+                totalFilesEvaluated: files.length,
+                filesIncluded: includedFiles.length,
+                filesExcluded: excludedFiles.length,
+                totalCharactersUsed: totalChars,
+                approximateTokensUsed: Math.round(totalChars / 4)
+              },
+              includedFiles,
+              excludedFiles
+            };
+    },
+  },
   // AIWAY_EVOLUTION_TOOLS_END
 };
 
