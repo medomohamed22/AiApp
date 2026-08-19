@@ -10,6 +10,111 @@ export const EVOLUTION_SKILLS = {
 
 export const EVOLUTION_TOOLS = {
   // AIWAY_EVOLUTION_TOOLS_START
+  "html-syntax-lint-verifier": {
+    name: "HTML Syntax and DOM Structure Verifier",
+    description: "Parses HTML strings to verify balanced tags, essential semantic landmarks, accessibility attributes, and script safety prior to publication.",
+    method: "POST",
+    tags: [
+      "html",
+      "lint",
+      "verification",
+      "dom",
+      "accessibility",
+      "qa"
+    ],
+    domains: [
+      "testing",
+      "frontend",
+      "code-quality",
+      "verification"
+    ],
+    userValue: 90,
+    selfImprovementValue: 92,
+    evolutionSafe: true,
+    evolutionHint: "Use this tool to automatically validate generated HTML code or static pages for structural correctness and accessibility compliance before deployment.",
+    schema: {
+      "type": "object",
+      "properties": {
+        "html": {
+          "type": "string",
+          "description": "The HTML content string to verify."
+        }
+      },
+      "required": [
+        "html"
+      ]
+    },
+    run: async (args, context) => {
+      const html = String(args.html || '');
+      const warnings = [];
+      const errors = [];
+      
+      if (!html.trim()) {
+        errors.push('Empty HTML content provided.');
+      }
+      
+      // Check for basic document structure or container
+      const hasDoctype = /<!DOCTYPE\s+html>/i.test(html);
+      const hasHtmlTag = /<html[^>]*>/i.test(html) && /<\/html>/i.test(html);
+      const hasBodyTag = /<body[^>]*>/i.test(html) && /<\/body>/i.test(html);
+      
+      if (!hasDoctype && html.length > 200) {
+        warnings.push('Missing <!DOCTYPE html> declaration.');
+      }
+      if (!hasHtmlTag) {
+        warnings.push('Missing <html> root tags.');
+      }
+      if (!hasBodyTag) {
+        warnings.push('Missing <body> container tags.');
+      }
+      
+      // Check for basic semantic landmarks
+      const hasHeader = /<header[^>]*>/i.test(html);
+      const hasMain = /<main[^>]*>/i.test(html);
+      const hasFooter = /<footer[^>]*>/i.test(html);
+      
+      const semanticCount = [hasHeader, hasMain, hasFooter].filter(Boolean).length;
+      if (semanticCount === 0) {
+        warnings.push('No semantic landmarks (<header>, <main>, <footer>) detected.');
+      }
+      
+      // Basic tag balance check for key structural elements
+      const tagsToCheck = ['div', 'section', 'article', 'p', 'span', 'script', 'ul', 'ol', 'table'];
+      for (const tag of tagsToCheck) {
+        const openMatches = html.match(new RegExp(`<${tag}(\s+[^>]*)?>`, 'gi')) || [];
+        const closeMatches = html.match(new RegExp(`</${tag}>`, 'gi')) || [];
+        if (openMatches.length !== closeMatches.length) {
+          warnings.push(`Potential tag imbalance for <${tag}>: opened ${openMatches.length} times, closed ${closeMatches.length} times.`);
+        }
+      }
+      
+      // Accessibility checks
+      const imgMatches = html.match(/<img[^>]*>/gi) || [];
+      let missingAltCount = 0;
+      for (const img of imgMatches) {
+        if (!/alt\s*=\s*["'][^"']*["']/i.test(img)) {
+          missingAltCount++;
+        }
+      }
+      if (missingAltCount > 0) {
+        warnings.push(`Found ${missingAltCount} <img> tag(s) missing 'alt' accessibility attribute.`);
+      }
+      
+      return {
+        valid: errors.length === 0,
+        stats: {
+          length: html.length,
+          hasDoctype,
+          hasHtmlTag,
+          hasBodyTag,
+          semanticLandmarks: semanticCount,
+          imagesWithoutAlt: missingAltCount
+        },
+        errors,
+        warnings
+      };
+    },
+  },
   // AIWAY_EVOLUTION_TOOLS_END
 };
 

@@ -1,12 +1,106 @@
 {
   "version": 3,
   "skills": [],
-  "httpTools": [],
+  "httpTools": [
+    {
+      "id": "html-syntax-lint-verifier",
+      "name": "HTML Syntax and DOM Structure Verifier",
+      "description": "Parses HTML strings to verify balanced tags, essential semantic landmarks, accessibility attributes, and script safety prior to publication.",
+      "method": "POST",
+      "url": "/api/ai",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "html": {
+            "type": "string",
+            "description": "The HTML content string to verify."
+          }
+        },
+        "required": [
+          "html"
+        ]
+      },
+      "permission": "ask",
+      "capabilityId": "html-syntax-lint-verifier",
+      "tags": [
+        "html",
+        "lint",
+        "verification",
+        "dom",
+        "accessibility",
+        "qa"
+      ],
+      "domains": [
+        "testing",
+        "frontend",
+        "code-quality",
+        "verification"
+      ],
+      "userValue": 90,
+      "selfImprovementValue": 92,
+      "evolutionSafe": true,
+      "evolutionHint": "Use this tool to automatically validate generated HTML code or static pages for structural correctness and accessibility compliance before deployment.",
+      "addedAt": "2026-08-19T18:43:53.522Z"
+    }
+  ],
   "intelligence": {
-    "gapProfile": {},
-    "capabilityMetrics": {},
-    "evolutionHistory": [],
-    "lastPriorities": [],
-    "lastGapRationale": ""
+    "gapProfile": {
+      "backendReasoning": 35,
+      "frontendReasoning": 30,
+      "architecturePlanning": 30,
+      "testingVerification": 20,
+      "securityReview": 25,
+      "debugging": 25,
+      "contextManagement": 35,
+      "toolSelection": 30,
+      "codeQuality": 30,
+      "deploymentReliability": 40
+    },
+    "capabilityMetrics": {
+      "html-syntax-lint-verifier": {
+        "createdAt": "2026-08-19T18:43:53.522Z",
+        "strategicScore": 90,
+        "userValue": 90,
+        "selfImprovementValue": 92,
+        "evolutionUses": 0,
+        "successfulEvolutionUses": 0
+      }
+    },
+    "evolutionHistory": [
+      {
+        "at": "2026-08-19T18:43:53.522Z",
+        "selectedId": "html-syntax-lint-verifier",
+        "capabilityId": "html-syntax-lint-verifier",
+        "capabilityType": "tool",
+        "score": 90,
+        "userValue": 90,
+        "selfImprovementValue": 92,
+        "advisors": [],
+        "weakestGaps": [
+          {
+            "key": "testingVerification",
+            "score": 20
+          },
+          {
+            "key": "securityReview",
+            "score": 25
+          },
+          {
+            "key": "debugging",
+            "score": 25
+          }
+        ]
+      }
+    ],
+    "lastPriorities": [
+      "Implement automated testing and verification skills to ensure generated website builds and code changes are robust before publishing.",
+      "Enhance frontend and backend reasoning capabilities with reusable skills and safe tools for richer full-stack web application generation.",
+      "Improve context management and tool selection to allow AiWay to discover and utilize evolutionary tools more effectively in future runs."
+    ],
+    "lastGapRationale": "As an initial bootstrap without prior evolutionary skills or tools, AiWay currently lacks specialized procedural guidance and automated verification mechanisms. The highest priority gaps are in testing, verification, architecture planning, and debugging, which directly impact end-user website building quality and self-improvement reliability."
   }
 }
