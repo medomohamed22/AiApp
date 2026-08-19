@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "skills": [],
+  "httpTools": [],
+  "intelligence": {
+    "gapProfile": {},
+    "capabilityMetrics": {},
+    "evolutionHistory": [],
+    "lastPriorities": [],
+    "lastGapRationale": ""
+  }
+}
