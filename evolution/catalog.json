@@ -1,6 +1,30 @@
 {
   "version": 3,
-  "skills": [],
+  "skills": [
+    {
+      "id": "fullstack-state-architecture-planner",
+      "name": "Advanced Full-Stack Architecture and State Management Skill",
+      "description": "Guides AiWay through structured procedural design patterns for state synchronization, modular component decomposition, and robust client-side routing across multi-page applications.",
+      "url": "/api/ai?action=skill&id=fullstack-state-architecture-planner",
+      "tags": [
+        "architecture",
+        "state-management",
+        "fullstack",
+        "routing",
+        "modular",
+        "scalability"
+      ],
+      "domains": [
+        "architecture-planning",
+        "frontend-reasoning",
+        "backend-reasoning",
+        "code-quality"
+      ],
+      "userValue": 89,
+      "selfImprovementValue": 93,
+      "addedAt": "2026-08-19T20:37:03.363Z"
+    }
+  ],
   "httpTools": [
     {
       "id": "html-syntax-lint-verifier",
@@ -121,16 +145,16 @@
   ],
   "intelligence": {
     "gapProfile": {
-      "backendReasoning": 40,
-      "frontendReasoning": 35,
-      "architecturePlanning": 35,
-      "testingVerification": 30,
-      "securityReview": 30,
-      "debugging": 30,
-      "contextManagement": 40,
-      "toolSelection": 35,
-      "codeQuality": 35,
-      "deploymentReliability": 45
+      "backendReasoning": 45,
+      "frontendReasoning": 40,
+      "architecturePlanning": 40,
+      "testingVerification": 35,
+      "securityReview": 35,
+      "debugging": 35,
+      "contextManagement": 45,
+      "toolSelection": 40,
+      "codeQuality": 40,
+      "deploymentReliability": 50
     },
     "capabilityMetrics": {
       "html-syntax-lint-verifier": {
@@ -138,15 +162,24 @@
         "strategicScore": 90,
         "userValue": 90,
         "selfImprovementValue": 92,
-        "evolutionUses": 1,
-        "successfulEvolutionUses": 1,
-        "lastUsedAt": "2026-08-19T20:25:20.468Z"
+        "evolutionUses": 2,
+        "successfulEvolutionUses": 2,
+        "lastUsedAt": "2026-08-19T20:37:03.363Z"
       },
       "context-compression-relevance-ranker": {
         "createdAt": "2026-08-19T20:25:20.468Z",
         "strategicScore": 92,
         "userValue": 89,
         "selfImprovementValue": 94,
+        "evolutionUses": 1,
+        "successfulEvolutionUses": 1,
+        "lastUsedAt": "2026-08-19T20:37:03.363Z"
+      },
+      "fullstack-state-architecture-planner": {
+        "createdAt": "2026-08-19T20:37:03.363Z",
+        "strategicScore": 92,
+        "userValue": 89,
+        "selfImprovementValue": 93,
         "evolutionUses": 0,
         "successfulEvolutionUses": 0
       }
@@ -205,6 +238,41 @@
             "score": 30
           }
         ]
+      },
+      {
+        "at": "2026-08-19T20:37:03.363Z",
+        "selectedId": "fullstack-state-architecture-planner",
+        "capabilityId": "fullstack-state-architecture-planner",
+        "capabilityType": "skill",
+        "score": 92,
+        "userValue": 89,
+        "selfImprovementValue": 93,
+        "advisors": [
+          {
+            "id": "html-syntax-lint-verifier",
+            "type": "tool",
+            "ok": true
+          },
+          {
+            "id": "context-compression-relevance-ranker",
+            "type": "tool",
+            "ok": true
+          }
+        ],
+        "weakestGaps": [
+          {
+            "key": "testingVerification",
+            "score": 35
+          },
+          {
+            "key": "securityReview",
+            "score": 35
+          },
+          {
+            "key": "debugging",
+            "score": 35
+          }
+        ]
       }
     ],
     "lastPriorities": [
@@ -212,6 +280,6 @@
       "Introduce advanced full-stack architecture planning and state management skills to guide AiWay in constructing more dynamic, scalable multi-page web applications.",
       "Enhance automated security scanning and dependency verification tools to identify potential vulnerabilities in generated code before publication."
     ],
-    "lastGapRationale": "While the repository has successfully introduced an initial HTML syntax and DOM verification tool, AiWay still requires deeper procedural skills and verification tools for comprehensive full-stack reasoning, security auditing, and robust error debugging. Improving these areas will directly elevate end-user website building results and ensure higher reliability in self-evolution cycles."
+    "lastGapRationale": "While the repository has successfully introduced an initial HTML syntax and DOM verification tool as well as a context compression ranker, AiWay still requires deeper procedural skills and verification tools for comprehensive full-stack reasoning, security auditing, and robust error debugging. Improving these areas will directly elevate end-user website building results and ensure higher reliability in self-evolution cycles."
   }
 }
