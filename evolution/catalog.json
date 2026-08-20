@@ -141,70 +141,20 @@
       "evolutionSafe": true,
       "evolutionHint": "Use this tool to rank, prune, and compress file excerpts or code snippets against a specific task description before passing them into LLM context prompts.",
       "addedAt": "2026-08-19T20:25:20.468Z"
-    },
-    {
-      "id": "runtime-interaction-smoke-tester",
-      "name": "Automated Runtime Interaction and Smoke Test Tool",
-      "description": "Performs DOM script safety checks, inspects interactive element event attachments, and simulates user interaction smoke tests on generated web pages prior to publication.",
-      "method": "POST",
-      "url": "/api/ai",
-      "headers": {
-        "Content-Type": "application/json"
-      },
-      "body": "",
-      "schema": {
-        "type": "object",
-        "properties": {
-          "html": {
-            "type": "string",
-            "description": "The HTML content string to run runtime interaction and smoke tests against."
-          },
-          "strictEvents": {
-            "type": "boolean",
-            "description": "Whether to enforce strict checks for interactive elements having explicit event handlers or actionable attributes. Defaults to false."
-          }
-        },
-        "required": [
-          "html"
-        ]
-      },
-      "permission": "ask",
-      "capabilityId": "runtime-interaction-smoke-tester",
-      "tags": [
-        "testing",
-        "verification",
-        "smoke-test",
-        "dom",
-        "qa",
-        "debugging",
-        "automation"
-      ],
-      "domains": [
-        "testing",
-        "verification",
-        "debugging",
-        "frontend",
-        "code-quality"
-      ],
-      "userValue": 91,
-      "selfImprovementValue": 90,
-      "evolutionSafe": true,
-      "evolutionHint": "Use this tool to execute automated DOM smoke checks, script safety validations, and interactive event handler inspections on generated HTML pages before deployment.",
-      "addedAt": "2026-08-20T05:20:55.186Z"
     }
   ],
   "intelligence": {
     "gapProfile": {
-      "backendReasoning": 48,
-      "frontendReasoning": 45,
-      "architecturePlanning": 45,
-      "testingVerification": 38,
-      "securityReview": 38,
-      "debugging": 38,
-      "contextManagement": 48,
-      "toolSelection": 42,
-      "codeQuality": 42,
-      "deploymentReliability": 52
+      "backendReasoning": 45,
+      "frontendReasoning": 40,
+      "architecturePlanning": 40,
+      "testingVerification": 35,
+      "securityReview": 35,
+      "debugging": 35,
+      "contextManagement": 45,
+      "toolSelection": 40,
+      "codeQuality": 40,
+      "deploymentReliability": 50
     },
     "capabilityMetrics": {
       "html-syntax-lint-verifier": {
@@ -212,33 +162,24 @@
         "strategicScore": 90,
         "userValue": 90,
         "selfImprovementValue": 92,
-        "evolutionUses": 3,
-        "successfulEvolutionUses": 3,
-        "lastUsedAt": "2026-08-20T05:20:55.186Z"
+        "evolutionUses": 2,
+        "successfulEvolutionUses": 2,
+        "lastUsedAt": "2026-08-19T20:37:03.363Z"
       },
       "context-compression-relevance-ranker": {
         "createdAt": "2026-08-19T20:25:20.468Z",
         "strategicScore": 92,
         "userValue": 89,
         "selfImprovementValue": 94,
-        "evolutionUses": 2,
-        "successfulEvolutionUses": 2,
-        "lastUsedAt": "2026-08-20T05:20:55.186Z"
+        "evolutionUses": 1,
+        "successfulEvolutionUses": 1,
+        "lastUsedAt": "2026-08-19T20:37:03.363Z"
       },
       "fullstack-state-architecture-planner": {
         "createdAt": "2026-08-19T20:37:03.363Z",
         "strategicScore": 92,
         "userValue": 89,
         "selfImprovementValue": 93,
-        "evolutionUses": 1,
-        "successfulEvolutionUses": 1,
-        "lastUsedAt": "2026-08-20T05:20:55.186Z"
-      },
-      "runtime-interaction-smoke-tester": {
-        "createdAt": "2026-08-20T05:20:55.186Z",
-        "strategicScore": 92,
-        "userValue": 91,
-        "selfImprovementValue": 90,
         "evolutionUses": 0,
         "successfulEvolutionUses": 0
       }
@@ -332,53 +273,13 @@
             "score": 35
           }
         ]
-      },
-      {
-        "at": "2026-08-20T05:20:55.186Z",
-        "selectedId": "runtime-interaction-smoke-tester",
-        "capabilityId": "runtime-interaction-smoke-tester",
-        "capabilityType": "tool",
-        "score": 92,
-        "userValue": 91,
-        "selfImprovementValue": 90,
-        "advisors": [
-          {
-            "id": "fullstack-state-architecture-planner",
-            "type": "skill",
-            "ok": true
-          },
-          {
-            "id": "html-syntax-lint-verifier",
-            "type": "tool",
-            "ok": true
-          },
-          {
-            "id": "context-compression-relevance-ranker",
-            "type": "tool",
-            "ok": true
-          }
-        ],
-        "weakestGaps": [
-          {
-            "key": "testingVerification",
-            "score": 38
-          },
-          {
-            "key": "securityReview",
-            "score": 38
-          },
-          {
-            "key": "debugging",
-            "score": 38
-          }
-        ]
       }
     ],
     "lastPriorities": [
-      "Develop automated end-to-end testing and runtime verification harnesses to validate generated web applications against common user interactions and edge cases.",
-      "Introduce automated security vulnerability scanning and dependency auditing tools to detect injection flaws, missing rate limits, and misconfigured headers before publication.",
-      "Enhance structured debugging and error-tracing skills to enable AiWay to systematically inspect stack traces, runtime exceptions, and fix broken code blocks autonomously."
+      "Develop automated front-end component verification and visual regression testing capabilities to ensure generated user interfaces are robust and render correctly across devices.",
+      "Introduce advanced full-stack architecture planning and state management skills to guide AiWay in constructing more dynamic, scalable multi-page web applications.",
+      "Enhance automated security scanning and dependency verification tools to identify potential vulnerabilities in generated code before publication."
     ],
-    "lastGapRationale": "While AiWay has successfully integrated foundational HTML linting, context compression, and full-stack state architecture planning, significant gaps remain in rigorous automated testing, security review, and interactive debugging. Strengthening these capabilities will directly elevate end-user website-building results by ensuring high reliability, secure code generation, and robust self-correction loops in future runs."
+    "lastGapRationale": "While the repository has successfully introduced an initial HTML syntax and DOM verification tool as well as a context compression ranker, AiWay still requires deeper procedural skills and verification tools for comprehensive full-stack reasoning, security auditing, and robust error debugging. Improving these areas will directly elevate end-user website building results and ensure higher reliability in self-evolution cycles."
   }
 }
