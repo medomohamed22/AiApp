@@ -1,4 +1,4 @@
-import { allowMethod, env, json, pipeFetch } from './_utils.js';
+import { allowMethod, env, json, pipeFetch, fetchOpenCode } from './_utils.js';
 
 // Self-Evolution capabilities are appended ONLY inside these registries.
 // The evolution endpoint performs deterministic insertions and never rewrites
@@ -362,7 +362,7 @@ export default async function handler(req, res) {
       headers['HTTP-Referer'] = process.env.APP_URL || 'https://aiway.vercel.app';
       headers['X-Title'] = 'AiWay';
     } else if (provider === 'opencode') {
-      url = 'https://opencode.ai/inference/openai/v1/chat/completions';
+      url = null; // resolved through the OpenCode gateway fallback below
       if (process.env.OPENCODE_API_KEY) headers.Authorization = `Bearer ${process.env.OPENCODE_API_KEY}`;
     } else if (provider === 'hermes') {
       const rawBase = env('HERMES_BASE_URL').trim().replace(/\/+$/, '');
@@ -385,11 +385,23 @@ export default async function handler(req, res) {
       return json(res, 400, { error: 'Unsupported provider' });
     }
 
-    const upstream = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    let upstream;
+    if (provider === 'opencode') {
+      const result = await fetchOpenCode('/chat/completions', {
+        method: 'POST',
+        headers: { ...headers, Accept: 'application/json' },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      });
+      upstream = result.response;
+      res.setHeader('X-AiWay-OpenCode-Gateway', new URL(result.url).host);
+    } else {
+      upstream = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+    }
 
     await pipeFetch(upstream, res);
   } catch (error) {

@@ -1,4 +1,4 @@
-import { allowMethod, env, json } from './_utils.js';
+import { allowMethod, env, json, fetchOpenCode } from './_utils.js';
 
 function pricingNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -111,7 +111,7 @@ export default async function handler(req, res) {
     } else if (provider === 'opencode') {
       const headers = {
         Accept: 'application/json',
-        'User-Agent': 'AiWay-Vercel/1.0',
+        'User-Agent': 'AiWay-Vercel/1.1',
       };
       if (process.env.OPENCODE_API_KEY) headers.Authorization = `Bearer ${process.env.OPENCODE_API_KEY}`;
 
@@ -119,16 +119,19 @@ export default async function handler(req, res) {
       const timeout = setTimeout(() => controller.abort(), 12000);
       let r;
       let raw = '';
+      let resolvedUrl = '';
       try {
-        r = await fetch('https://opencode.ai/inference/openai/v1/models', {
+        const result = await fetchOpenCode('/models', {
           headers,
           signal: controller.signal,
           cache: 'no-store',
         });
+        r = result.response;
+        resolvedUrl = result.url;
         raw = await r.text();
       } catch (error) {
         if (error?.name === 'AbortError') throw new Error('OpenCode models request timed out after 12 seconds');
-        throw new Error(`OpenCode network error: ${error?.message || error}`);
+        throw new Error(error?.message || `OpenCode network error: ${error}`);
       } finally {
         clearTimeout(timeout);
       }
@@ -138,19 +141,17 @@ export default async function handler(req, res) {
         try { d = JSON.parse(raw); }
         catch {
           const sample = raw.replace(/\s+/g, ' ').slice(0, 220);
-          throw new Error(`OpenCode returned non-JSON response (HTTP ${r.status}): ${sample || 'empty body'}`);
+          throw new Error(`OpenCode returned non-JSON response (HTTP ${r.status}) from ${resolvedUrl}: ${sample || 'empty body'}`);
         }
       }
       if (!r.ok) {
         const message = d?.error?.message || d?.error || d?.message || raw.slice(0, 220) || `HTTP ${r.status}`;
-        throw new Error(`OpenCode models failed: ${message}`);
+        throw new Error(`OpenCode models failed via ${resolvedUrl}: ${message}`);
       }
-      if (!d) throw new Error('OpenCode returned an empty models response');
+      if (!d) throw new Error(`OpenCode returned an empty models response from ${resolvedUrl}`);
 
       details = modelDetailsFromOpenAI(d.data || d.models, 'opencode');
       if (!details.length) {
-        // Official chat-completions compatible catalog fallback. This keeps the UI usable
-        // if discovery is temporarily unavailable or the upstream response shape changes.
         details = [
           'big-pickle',
           'mimo-v2.5-free',

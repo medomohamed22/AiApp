@@ -40,3 +40,36 @@ export async function pipeFetch(upstream, res) {
     res.end();
   }
 }
+
+export function openCodeBaseUrls() {
+  const configured = String(process.env.OPENCODE_BASE_URL || '').trim().replace(/\/+$/, '');
+  const defaults = [
+    'https://console.dev.opencode.ai/inference/openai/v1',
+    'https://opencode.ai/inference/openai/v1',
+  ];
+  const urls = configured ? [configured, ...defaults] : defaults;
+  return [...new Set(urls.map(v => v.replace(/\/+$/, '')).filter(Boolean))];
+}
+
+export async function fetchOpenCode(path, init = {}) {
+  const attempts = [];
+  const suffix = String(path || '').startsWith('/') ? String(path) : `/${path}`;
+  for (const base of openCodeBaseUrls()) {
+    const url = `${base}${suffix}`;
+    try {
+      const response = await fetch(url, init);
+      if (response.ok) return { response, url, attempts };
+      const body = await response.clone().text().catch(() => '');
+      attempts.push({ url, status: response.status, body: body.replace(/\s+/g, ' ').slice(0, 220) });
+      // Retry another official gateway for routing/not-found/upstream failures.
+      if (![404, 405, 408, 429, 500, 502, 503, 504].includes(response.status)) {
+        return { response, url, attempts };
+      }
+    } catch (error) {
+      attempts.push({ url, error: error?.message || String(error) });
+    }
+  }
+  const last = attempts[attempts.length - 1];
+  const detail = last?.status ? `HTTP ${last.status}${last.body ? `: ${last.body}` : ''}` : (last?.error || 'network error');
+  throw new Error(`OpenCode unavailable on all configured gateways (${detail})`);
+}
