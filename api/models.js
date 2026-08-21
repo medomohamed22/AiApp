@@ -109,12 +109,61 @@ export default async function handler(req, res) {
       if (!r.ok) throw new Error(d?.error?.message || `OpenRouter HTTP ${r.status}`);
       details = modelDetailsFromOpenAI(d.data, 'openrouter');
     } else if (provider === 'opencode') {
-      const headers = {};
+      const headers = {
+        Accept: 'application/json',
+        'User-Agent': 'AiWay-Vercel/1.0',
+      };
       if (process.env.OPENCODE_API_KEY) headers.Authorization = `Bearer ${process.env.OPENCODE_API_KEY}`;
-      const r = await fetch('https://opencode.ai/inference/openai/v1/models', { headers });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d?.error?.message || d?.error || `OpenCode HTTP ${r.status}`);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      let r;
+      let raw = '';
+      try {
+        r = await fetch('https://opencode.ai/inference/openai/v1/models', {
+          headers,
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        raw = await r.text();
+      } catch (error) {
+        if (error?.name === 'AbortError') throw new Error('OpenCode models request timed out after 12 seconds');
+        throw new Error(`OpenCode network error: ${error?.message || error}`);
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      let d = null;
+      if (raw.trim()) {
+        try { d = JSON.parse(raw); }
+        catch {
+          const sample = raw.replace(/\s+/g, ' ').slice(0, 220);
+          throw new Error(`OpenCode returned non-JSON response (HTTP ${r.status}): ${sample || 'empty body'}`);
+        }
+      }
+      if (!r.ok) {
+        const message = d?.error?.message || d?.error || d?.message || raw.slice(0, 220) || `HTTP ${r.status}`;
+        throw new Error(`OpenCode models failed: ${message}`);
+      }
+      if (!d) throw new Error('OpenCode returned an empty models response');
+
       details = modelDetailsFromOpenAI(d.data || d.models, 'opencode');
+      if (!details.length) {
+        // Official chat-completions compatible catalog fallback. This keeps the UI usable
+        // if discovery is temporarily unavailable or the upstream response shape changes.
+        details = [
+          'big-pickle',
+          'mimo-v2.5-free',
+          'nemotron-3-super-free',
+          'minimax-m2.7',
+          'minimax-m2.5',
+          'glm-5.1',
+          'glm-5',
+          'kimi-k2.5',
+          'kimi-k2.6',
+          'grok-build-0.1',
+        ].map(id => ({ id, label: id, provider: 'opencode', tier: classifyPricing(id, null), pricing: null }));
+      }
     } else if (provider === 'hermes') {
       const configuredBase = normalizeBaseUrl(env('HERMES_BASE_URL'));
       const base = configuredBase.replace(/\/v1$/i, '');
