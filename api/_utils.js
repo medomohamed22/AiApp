@@ -43,12 +43,11 @@ export async function pipeFetch(upstream, res) {
 
 export function openCodeBaseUrls() {
   const configured = String(process.env.OPENCODE_BASE_URL || '').trim().replace(/\/+$/, '');
-  // Current OpenCode Console gateway. The old console.dev.opencode.ai
-  // inference endpoint was retired and now returns HTTP 410.
-  const defaults = [
-    'https://opencode.ai/inference/openai/v1',
-  ];
-  const urls = configured ? [configured, ...defaults] : defaults;
+  // OpenCode Zen is the current public gateway. Legacy /inference/openai/v1
+  // endpoints have returned 404/410 in production, so they are intentionally
+  // not used as fallbacks anymore.
+  const current = 'https://opencode.ai/zen/v1';
+  const urls = configured ? [configured, current] : [current];
   return [...new Set(urls.map(v => v.replace(/\/+$/, '')).filter(Boolean))];
 }
 
@@ -61,8 +60,10 @@ export async function fetchOpenCode(path, init = {}) {
       const response = await fetch(url, init);
       if (response.ok) return { response, url, attempts };
       const body = await response.clone().text().catch(() => '');
-      attempts.push({ url, status: response.status, body: body.replace(/\s+/g, ' ').slice(0, 220) });
-      // Retry another official gateway for routing/not-found/upstream failures.
+      attempts.push({ url, status: response.status, body: body.replace(/\s+/g, ' ').slice(0, 300) });
+
+      // A custom OPENCODE_BASE_URL may be stale. Only fall through to the
+      // built-in Zen endpoint for routing/retirement/upstream failures.
       if (![404, 405, 408, 410, 429, 500, 502, 503, 504].includes(response.status)) {
         return { response, url, attempts };
       }
@@ -71,6 +72,8 @@ export async function fetchOpenCode(path, init = {}) {
     }
   }
   const last = attempts[attempts.length - 1];
-  const detail = last?.status ? `HTTP ${last.status}${last.body ? `: ${last.body}` : ''}` : (last?.error || 'network error');
-  throw new Error(`OpenCode unavailable on all configured gateways (${detail})`);
+  const detail = last?.status
+    ? `HTTP ${last.status}${last.body ? `: ${last.body}` : ''}`
+    : (last?.error || 'network error');
+  throw new Error(`OpenCode Zen unavailable (${detail})`);
 }

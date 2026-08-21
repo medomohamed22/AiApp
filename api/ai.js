@@ -362,7 +362,7 @@ export default async function handler(req, res) {
       headers['HTTP-Referer'] = process.env.APP_URL || 'https://aiway.vercel.app';
       headers['X-Title'] = 'AiWay';
     } else if (provider === 'opencode') {
-      url = null; // resolved through the OpenCode gateway fallback below
+      url = null; // resolved through the OpenCode Zen gateway below
       if (process.env.OPENCODE_API_KEY) headers.Authorization = `Bearer ${process.env.OPENCODE_API_KEY}`;
     } else if (provider === 'hermes') {
       const rawBase = env('HERMES_BASE_URL').trim().replace(/\/+$/, '');
@@ -395,6 +395,7 @@ export default async function handler(req, res) {
       });
       upstream = result.response;
       res.setHeader('X-AiWay-OpenCode-Gateway', new URL(result.url).host);
+      res.setHeader('X-AiWay-OpenCode-API', 'zen-v1');
     } else {
       upstream = await fetch(url, {
         method: 'POST',

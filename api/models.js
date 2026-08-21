@@ -150,20 +150,25 @@ export default async function handler(req, res) {
       }
       if (!d) throw new Error(`OpenCode returned an empty models response from ${resolvedUrl}`);
 
-      details = modelDetailsFromOpenAI(d.data || d.models, 'opencode');
+      // Zen /models is the source of truth. This app currently speaks the
+      // OpenAI-compatible Chat Completions protocol, so keep only models whose
+      // current Zen endpoint is /chat/completions. Other Zen models use
+      // /responses, /messages, or the Gemini protocol and need different payloads.
+      const chatCompatibleIds = new Set([
+        'deepseek-v4-pro', 'deepseek-v4-flash',
+        'minimax-m3', 'minimax-m2.7', 'minimax-m2.5',
+        'glm-5.2', 'glm-5.1', 'glm-5',
+        'kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3',
+        'big-pickle', 'x-preview-f-free', 'mimo-v2.5-free', 'hy3-free',
+        'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free'
+      ]);
+
+      details = modelDetailsFromOpenAI(d.data || d.models, 'opencode')
+        .filter(item => chatCompatibleIds.has(item.id))
+        .map(item => ({ ...item, api: 'chat/completions' }));
+
       if (!details.length) {
-        details = [
-          'big-pickle',
-          'mimo-v2.5-free',
-          'nemotron-3-super-free',
-          'minimax-m2.7',
-          'minimax-m2.5',
-          'glm-5.1',
-          'glm-5',
-          'kimi-k2.5',
-          'kimi-k2.6',
-          'grok-build-0.1',
-        ].map(id => ({ id, label: id, provider: 'opencode', tier: classifyPricing(id, null), pricing: null }));
+        throw new Error(`OpenCode Zen returned models, but none matched the app's Chat Completions compatibility list. Update api/models.js to the latest Zen catalog.`);
       }
     } else if (provider === 'hermes') {
       const configuredBase = normalizeBaseUrl(env('HERMES_BASE_URL'));
