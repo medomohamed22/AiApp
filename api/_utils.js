@@ -43,8 +43,9 @@ export async function pipeFetch(upstream, res) {
 
 export function openCodeBaseUrls() {
   const configured = String(process.env.OPENCODE_BASE_URL || '').trim().replace(/\/+$/, '');
+  // Current OpenCode Console gateway. The old console.dev.opencode.ai
+  // inference endpoint was retired and now returns HTTP 410.
   const defaults = [
-    'https://console.dev.opencode.ai/inference/openai/v1',
     'https://opencode.ai/inference/openai/v1',
   ];
   const urls = configured ? [configured, ...defaults] : defaults;
@@ -62,7 +63,7 @@ export async function fetchOpenCode(path, init = {}) {
       const body = await response.clone().text().catch(() => '');
       attempts.push({ url, status: response.status, body: body.replace(/\s+/g, ' ').slice(0, 220) });
       // Retry another official gateway for routing/not-found/upstream failures.
-      if (![404, 405, 408, 429, 500, 502, 503, 504].includes(response.status)) {
+      if (![404, 405, 408, 410, 429, 500, 502, 503, 504].includes(response.status)) {
         return { response, url, attempts };
       }
     } catch (error) {
