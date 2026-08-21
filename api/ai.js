@@ -361,6 +361,22 @@ export default async function handler(req, res) {
       headers.Authorization = `Bearer ${env('OPENROUTER_API_KEY')}`;
       headers['HTTP-Referer'] = process.env.APP_URL || 'https://aiway.vercel.app';
       headers['X-Title'] = 'AiWay';
+    } else if (provider === 'opencode') {
+      url = 'https://opencode.ai/inference/openai/v1/chat/completions';
+      if (process.env.OPENCODE_API_KEY) headers.Authorization = `Bearer ${process.env.OPENCODE_API_KEY}`;
+    } else if (provider === 'hermes') {
+      const rawBase = env('HERMES_BASE_URL').trim().replace(/\/+$/, '');
+      const parsed = new URL(rawBase);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('HERMES_BASE_URL must use http or https');
+      const base = parsed.toString().replace(/\/+$/, '');
+      url = `${base.endsWith('/v1') ? base : `${base}/v1`}/chat/completions`;
+      headers.Authorization = `Bearer ${env('HERMES_API_KEY')}`;
+      const encoded = String(payload.model || '');
+      if (encoded.includes('::')) {
+        const [hermesProvider, ...rest] = encoded.split('::');
+        payload.model = rest.join('::');
+        payload.provider = hermesProvider;
+      }
     } else if (provider === 'gemini') {
       if (!model) return json(res, 400, { error: 'model is required for Gemini' });
       const key = env('GEMINI_API_KEY');
