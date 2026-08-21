@@ -1,7 +1,8 @@
-import { allowMethod, env, json } from './_utils.js';
+import { allowMethod, env, json, requireAppAccess } from './_utils.js';
 
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['GET'])) return;
+  if (!requireAppAccess(req, res)) return;
   try {
     const q = String(req.query?.q || '').trim();
     if (!q) return json(res, 400, { error: 'q is required' });

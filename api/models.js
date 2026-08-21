@@ -1,4 +1,4 @@
-import { allowMethod, env, json, fetchOpenCode } from './_utils.js';
+import { allowMethod, env, json, fetchOpenCode, requireAppAccess } from './_utils.js';
 
 function pricingNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -81,6 +81,7 @@ function hermesDetails(payload) {
 
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['GET'])) return;
+  if (!requireAppAccess(req, res)) return;
   try {
     const provider = String(req.query?.provider || 'gemini').toLowerCase();
     let details = [];
@@ -89,9 +90,9 @@ export default async function handler(req, res) {
       const key = env('GEMINI_API_KEY');
       let pageToken = '';
       do {
-        const qs = new URLSearchParams({ key, pageSize: '1000' });
+        const qs = new URLSearchParams({ pageSize: '1000' });
         if (pageToken) qs.set('pageToken', pageToken);
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?${qs}`);
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?${qs}`, { headers: { 'x-goog-api-key': key } });
         const d = await r.json();
         if (!r.ok) throw new Error(d?.error?.message || `Gemini HTTP ${r.status}`);
         details.push(...(d.models || [])
@@ -154,12 +155,14 @@ export default async function handler(req, res) {
       // OpenAI-compatible Chat Completions protocol, so keep only models whose
       // current Zen endpoint is /chat/completions. Other Zen models use
       // /responses, /messages, or the Gemini protocol and need different payloads.
+      // /models does not expose each model's protocol. Keep this list aligned
+      // with OpenCode Zen's documented OpenAI-compatible /chat/completions table.
       const chatCompatibleIds = new Set([
-        'deepseek-v4-pro', 'deepseek-v4-flash',
+        'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-free',
         'minimax-m3', 'minimax-m2.7', 'minimax-m2.5',
         'glm-5.2', 'glm-5.1', 'glm-5',
         'kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3',
-        'big-pickle', 'x-preview-f-free', 'mimo-v2.5-free', 'hy3-free',
+        'big-pickle', 'mimo-v2.5-free', 'hy3-free', 'laguna-s-2.1-free',
         'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free'
       ]);
 
@@ -196,7 +199,10 @@ export default async function handler(req, res) {
 
     const deduped = [...new Map(details.map(x => [x.id, x])).values()]
       .sort((a, b) => a.label.localeCompare(b.label));
-    json(res, 200, { models: deduped.map(x => x.id), details: deduped });
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    res.end(JSON.stringify({ models: deduped.map(x => x.id), details: deduped }));
   } catch (error) {
     json(res, 500, { error: error?.message || 'Server error' });
   }

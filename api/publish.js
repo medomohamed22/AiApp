@@ -1,4 +1,4 @@
-import { allowMethod, env, json } from './_utils.js';
+import { allowMethod, bodyJson, env, json } from './_utils.js';
 
 const GH_API = 'https://api.github.com';
 const VERCEL_API = 'https://api.vercel.com';
@@ -14,11 +14,6 @@ function safePath(value='') {
   const path = String(value).replace(/^\/+/, '').replace(/\\/g, '/');
   if (!path || path.includes('..') || path.startsWith('.vercel/')) throw new Error(`Invalid file path: ${value}`);
   return path;
-}
-async function bodyJson(req) {
-  if (req.body && typeof req.body === 'object') return req.body;
-  let raw=''; for await (const chunk of req) raw += chunk;
-  return raw ? JSON.parse(raw) : {};
 }
 async function apiFetch(url, options={}, label='API') {
   const response = await fetch(url, options);
@@ -84,7 +79,7 @@ async function ensureVercelProject(token,teamId,{name,fullRepo}){
 async function createProjectEnv(token,teamId,projectId,names=[],supplied={}){
   const unique=[...new Set((names||[]).map(x=>String(x||'').trim().toUpperCase().replace(/[^A-Z0-9_]/g,'_')).filter(Boolean))];
   const secretMap=supplied&&typeof supplied==='object'&&!Array.isArray(supplied)?supplied:{};
-  const envs=unique.map(key=>{const direct=typeof secretMap[key]==='string'?secretMap[key]:undefined;const fallback=process.env[key];const value=direct!==undefined?direct:fallback;return{key,value,type:'encrypted',target:['production','preview']}}).filter(x=>typeof x.value==='string'&&x.value.length);
+  const envs=unique.map(key=>{const direct=typeof secretMap[key]==='string'?secretMap[key]:undefined;const fallback=process.env[key];const value=direct!==undefined?direct:fallback;return{key,value,type:'sensitive',target:['production','preview']}}).filter(x=>typeof x.value==='string'&&x.value.length);
   if(!envs.length)return{created:[],missing:unique};
   const suffix=teamQuery(teamId),url=`${VERCEL_API}/v10/projects/${encodeURIComponent(projectId)}/env${suffix}${suffix?'&':'?'}upsert=true`;
   await apiFetch(url,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify(envs)},'Vercel environment variables');
@@ -116,16 +111,6 @@ async function createDirectDeployment(token,teamId,{project,files}){
     name:project.name,project:project.id,target:'production',files:inlineFiles,
     projectSettings:staticProjectSettings()
   })},'Vercel direct deployment');
-}
-async function waitForDeployment(token,teamId,deploymentId,timeoutMs=120000){
-  const started=Date.now(); let latest=null;
-  while(Date.now()-started<timeoutMs){
-    latest=await apiFetch(`${VERCEL_API}/v13/deployments/${encodeURIComponent(deploymentId)}${teamQuery(teamId)}`,{headers:vercelHeaders(token)},'Vercel deployment status');
-    const state=latest.readyState||latest.state;
-    if(['READY','ERROR','CANCELED'].includes(state))return latest;
-    await new Promise(r=>setTimeout(r,2500));
-  }
-  return latest||{id:deploymentId,readyState:'QUEUED'};
 }
 function partialPayload({repo,fullRepo,project,stage,error}){
   return{ok:false,stage,error,repository:repo?{id:repo.id,name:repo.name,fullName:fullRepo,url:repo.html_url}:null,vercel:project?{projectId:project.id,projectName:project.name,projectUrl:`https://vercel.com/${project.accountId||''}/${project.name}`}:null};
@@ -175,18 +160,19 @@ export default async function handler(req,res){
       deployment=await createDirectDeployment(vercelToken,teamId,{project,files});
     }
 
-    stage='vercel_wait';
-    const finalDeployment=deployment?.id?await waitForDeployment(vercelToken,teamId,deployment.id):deployment;
-    const readyState=finalDeployment?.readyState||finalDeployment?.state||deployment?.readyState||'QUEUED';
-    const deploymentUrl=finalDeployment?.url||deployment?.url||'';
+    // Do not poll for up to two minutes inside a Serverless Function. Vercel
+    // returns a deployment immediately; returning it keeps publishing fast and
+    // avoids function timeouts on Hobby/Pro plans.
+    const readyState=deployment?.readyState||deployment?.state||'QUEUED';
+    const deploymentUrl=deployment?.url||'';
     const productionUrl=deploymentUrl?`https://${deploymentUrl}`:'';
 
     const result={
       ok:readyState!=='ERROR'&&readyState!=='CANCELED',state:readyState,stage:'done',
       repository:{id:repo.id,name:repo.name,fullName:fullRepo,url:repo.html_url,reused:gh.reused},
-      vercel:{projectId:project.id,projectName:project.name,deploymentId:finalDeployment?.id||deployment?.id||null,url:productionUrl,deploymentMode,projectReused:vp.reused,gitLinked:vp.gitLinked,gitLinkError:vp.gitLinkError||undefined,gitDeploymentFallbackReason:gitDeploymentError||undefined},
+      vercel:{projectId:project.id,projectName:project.name,deploymentId:deployment?.id||null,url:productionUrl,deploymentMode,projectReused:vp.reused,gitLinked:vp.gitLinked,gitLinkError:vp.gitLinkError||undefined,gitDeploymentFallbackReason:gitDeploymentError||undefined},
       environment,
-      message:readyState==='READY'?'Website published successfully.':'Deployment created; it may still be building.'
+      message:readyState==='READY'?'Website published successfully.':'Deployment created successfully and is continuing on Vercel.'
     };
     // Always return the exact API URLs. The assistant should never synthesize them.
     return json(res,200,result);

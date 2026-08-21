@@ -1,6 +1,7 @@
 export function json(res, status, data) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify(data));
 }
 
@@ -19,10 +20,35 @@ export function env(name) {
   return value;
 }
 
+export function requireAppAccess(req, res) {
+  const expected = String(process.env.APP_ACCESS_KEY || '').trim();
+  if (!expected) return true;
+  const supplied = String(req.headers?.['x-aiway-access-key'] || '');
+  if (supplied === expected) return true;
+  json(res, 401, { error: 'App access key is required or invalid.' });
+  return false;
+}
+
+export async function bodyJson(req, maxBytes = 2_000_000) {
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req.body === 'string') {
+    if (Buffer.byteLength(req.body, 'utf8') > maxBytes) throw new Error('Request body is too large');
+    return req.body.trim() ? JSON.parse(req.body) : {};
+  }
+  let raw = '';
+  for await (const chunk of req) {
+    raw += chunk;
+    if (Buffer.byteLength(raw, 'utf8') > maxBytes) throw new Error('Request body is too large');
+  }
+  return raw.trim() ? JSON.parse(raw) : {};
+}
+
 export async function pipeFetch(upstream, res) {
   res.statusCode = upstream.status;
   const contentType = upstream.headers.get('content-type');
   if (contentType) res.setHeader('Content-Type', contentType);
+  const requestId = upstream.headers.get('x-request-id');
+  if (requestId) res.setHeader('X-Upstream-Request-Id', requestId);
   res.setHeader('Cache-Control', 'no-store');
 
   if (!upstream.body) {
@@ -43,9 +69,6 @@ export async function pipeFetch(upstream, res) {
 
 export function openCodeBaseUrls() {
   const configured = String(process.env.OPENCODE_BASE_URL || '').trim().replace(/\/+$/, '');
-  // OpenCode Zen is the current public gateway. Legacy /inference/openai/v1
-  // endpoints have returned 404/410 in production, so they are intentionally
-  // not used as fallbacks anymore.
   const current = 'https://opencode.ai/zen/v1';
   const urls = configured ? [configured, current] : [current];
   return [...new Set(urls.map(v => v.replace(/\/+$/, '')).filter(Boolean))];
@@ -61,9 +84,6 @@ export async function fetchOpenCode(path, init = {}) {
       if (response.ok) return { response, url, attempts };
       const body = await response.clone().text().catch(() => '');
       attempts.push({ url, status: response.status, body: body.replace(/\s+/g, ' ').slice(0, 300) });
-
-      // A custom OPENCODE_BASE_URL may be stale. Only fall through to the
-      // built-in Zen endpoint for routing/retirement/upstream failures.
       if (![404, 405, 408, 410, 429, 500, 502, 503, 504].includes(response.status)) {
         return { response, url, attempts };
       }

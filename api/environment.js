@@ -19,14 +19,14 @@ export default async function handler(req,res){
     if(action==='list'){
       const data=await apiFetch(`${VERCEL_API}/v9/projects/${encodeURIComponent(projectId)}/env${teamQuery(teamId)}`,{headers:vercelHeaders(token)},'Vercel environment list');
       const envs=Array.isArray(data)?data:(data.envs||data.environmentVariables||[]);
-      return json(res,200,{ok:true,projectId,variables:envs.map(x=>({id:x.id,key:x.key,type:x.type||'encrypted',target:Array.isArray(x.target)?x.target:[]})).sort((a,b)=>a.key.localeCompare(b.key))});
+      return json(res,200,{ok:true,projectId,variables:envs.map(x=>({id:x.id,key:x.key,type:x.type||'sensitive',target:Array.isArray(x.target)?x.target:[]})).sort((a,b)=>a.key.localeCompare(b.key))});
     }
     if(action==='upsert'){
       const key=cleanKey(input.key),value=typeof input.value==='string'?input.value:'';
       if(!key)return json(res,400,{error:'Invalid environment variable name.'});
       if(!value.trim())return json(res,400,{error:`A value is required for ${key}.`});
       if(Buffer.byteLength(value,'utf8')>32000)return json(res,413,{error:'Secret value is too large.'});
-      const payload={key,value,type:'encrypted',target:cleanTargets(input.target)};
+      const payload={key,value,type:'sensitive',target:cleanTargets(input.target)};
       await apiFetch(`${VERCEL_API}/v10/projects/${encodeURIComponent(projectId)}/env${teamQuery(teamId,{upsert:'true'})}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify(payload)},'Vercel environment upsert');
       return json(res,200,{ok:true,projectId,key,target:payload.target,saved:true,valueExposed:false});
     }
