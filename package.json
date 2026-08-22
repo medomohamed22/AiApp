@@ -3,9 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:server && npm run test:client && npm run test:config",
-    "test:server": "node --check api/_utils.js && node --check api/ai.js && node --check api/models.js && node --check api/search.js && node --check api/health.js && node --check api/publish.js && node --check api/publish-check.js && node --check api/environment.js",
+    "test": "npm run test:server && npm run test:client && npm run test:config && npm run test:protocols && npm run test:agent",
+    "test:server": "node --check api/_utils.js && node --check api/ai.js && node --check api/_provider_adapters.js && node --check api/models.js && node --check api/search.js && node --check api/health.js && node --check api/publish.js && node --check api/publish-check.js && node --check api/environment.js",
     "test:client": "node --check assets/app.js",
-    "test:config": "node -e \"JSON.parse(require('fs').readFileSync('vercel.json')); JSON.parse(require('fs').readFileSync('opencode.json')); console.log('config ok')\""
+    "test:config": "node -e \"JSON.parse(require('fs').readFileSync('vercel.json')); JSON.parse(require('fs').readFileSync('opencode.json')); console.log('config ok')\"",
+    "test:protocols": "node -e \"import('./api/_provider_adapters.js').then(m=>{const t={'gpt-5.6-sol':'responses','claude-sonnet-5':'messages','gemini-3.7-flash':'gemini','x-preview-f-free':'chat/completions'}; for(const [id,x] of Object.entries(t)) if(m.openCodeProtocol(id)!==x) throw Error(id); console.log('protocol routing ok')})\"",
+    "test:agent": "node tests/agent-guards.mjs"
   }
 }

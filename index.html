@@ -70,6 +70,8 @@
     <div style="height:8px"></div>
     <div class="row"><button class="btn sm" id="loadModelsBtn">تحديث الموديلات</button><input class="field grow" id="modelFilter" placeholder="ابحث داخل الموديلات..." /></div>
     <div style="height:8px"></div><select class="field" id="modelPicker"><option>اكتب الموديل يدويًا أو حدّث القائمة</option></select>
+    <div style="height:10px"></div><div class="grid2"><div><label class="label">Hermes execution mode</label><select class="field" id="hermesMode"><option value="native">Native Runs — Hermes tools/skills/memory</option><option value="aiway">AiWay Loop — أدوات AiWay المحلية</option></select></div><div><label class="label">Hermes capabilities</label><div class="context-safe-note" id="hermesCapabilitiesHint">تظهر بعد تحديث موديلات Hermes.</div></div></div>
+    <div class="hint">Native Runs يستخدم /v1/runs وSSE الخاص بـHermes ويعرض نشاط أدواته وSubagents. AiWay Loop يبقي تنفيذ الأدوات داخل المتصفح كما كان.</div>
   </div>
   <div class="card"><h3>API Secrets</h3>
     <div class="notice" style="margin:0">تُدار مفاتيح المزودين من Vercel → Project → Settings → Environment Variables. لا تضع مفاتيح المزودين داخل هذا الملف.</div>
