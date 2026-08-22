@@ -162,13 +162,27 @@ export default async function handler(req, res) {
         'minimax-m3', 'minimax-m2.7', 'minimax-m2.5',
         'glm-5.2', 'glm-5.1', 'glm-5',
         'kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3',
-        'big-pickle', 'mimo-v2.5-free', 'hy3-free', 'laguna-s-2.1-free',
+        'big-pickle', 'x-preview-f-free', 'mimo-v2.5-free', 'hy3-free', 'laguna-s-2.1-free',
         'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free'
+      ]);
+
+      // Keep free Zen models easy to discover even if the upstream /models
+      // payload temporarily omits pricing metadata. These IDs are documented as
+      // free and Chat Completions compatible by OpenCode Zen.
+      const documentedFreeIds = new Set([
+        'big-pickle', 'x-preview-f-free', 'mimo-v2.5-free', 'hy3-free',
+        'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free',
+        'deepseek-v4-flash-free', 'laguna-s-2.1-free'
       ]);
 
       details = modelDetailsFromOpenAI(d.data || d.models, 'opencode')
         .filter(item => chatCompatibleIds.has(item.id))
-        .map(item => ({ ...item, api: 'chat/completions' }));
+        .map(item => ({
+          ...item,
+          tier: documentedFreeIds.has(item.id) ? 'free' : item.tier,
+          label: item.id === 'x-preview-f-free' ? 'Ox Alpha Free' : item.label,
+          api: 'chat/completions'
+        }));
 
       if (!details.length) {
         throw new Error(`OpenCode Zen returned models, but none matched the app's Chat Completions compatibility list. Update api/models.js to the latest Zen catalog.`);
