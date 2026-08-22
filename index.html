@@ -98,6 +98,12 @@
     <div style="height:8px"></div><label class="label">Quality model</label><input class="field" id="qualityModel" placeholder="اختياري — للكود/الملفات/المهام الثقيلة" />
     <div class="hint">Auto Router لا ينشئ Agent إضافي؛ يختار موديلًا واحدًا لنفس الـAgent قبل بدء الطلب.</div>
   </div>
+  <div class="card"><h3>Agent Intelligence</h3>
+    <div class="notice" style="margin:0 0 9px">طبقة orchestration متوافقة مع Vercel: تخطيط Todo، Subagents معزولة، Verifier/Evals، Browser Gateway آمن، Virtual Terminal على ملفات المشروع، وتنفيذ JavaScript داخل Web Worker.</div>
+    <div class="grid2"><div><label class="label">Orchestration</label><select class="field" id="orchestration"><option value="smart">Smart — تخطيط/تحقق عند المهام المعقدة</option><option value="off">Off — loop الأساسي فقط</option></select></div><div><label class="label">Verifier</label><select class="field" id="verifierEnabled"><option value="true">ON — Evals قبل إنهاء المهام المعقدة</option><option value="false">OFF</option></select></div></div>
+    <div style="height:8px"></div><label class="label">Subagents</label><select class="field" id="subagentsEnabled"><option value="true">ON — حتى 3 متخصصين في الجولة</option><option value="false">OFF</option></select>
+    <div class="hint">الـSubagents تستخدم نفس Provider/Model وتعود بنتائج مختصرة للـAgent الرئيسي. الـVirtual Terminal لا يشغّل أوامر نظام على Vercel، لذلك يبقى آمنًا ومتوافقًا مع Serverless.</div>
+  </div>
   <div class="card"><h3>Search Auto Router</h3>
     <div class="grid2"><div><label class="label">نوع البحث</label><select class="field" id="searchRouting"><option value="auto">Auto — يقرر حسب الطلب</option><option value="web">Web فقط</option><option value="visual">Web + Images دائمًا</option></select></div><div><label class="label">أقصى صور للرؤية</label><input class="field" id="visualImageLimit" type="number" min="1" max="6" step="1" /></div></div>
     <div class="hint">في Auto، الطلبات البصرية مثل الشكل والتصميم والصور والألوان والواجهات تستخدم بحث الويب + الصور، بينما المعلومات العادية تستخدم Web فقط. الصور المختارة تُرسل للموديل كرؤية عندما يدعم المزود ذلك.</div>
@@ -121,7 +127,7 @@
   <div class="sheet-head"><div class="grow"><h2>Tools & MCP</h2><p class="sub">الأدوات الأصلية + Remote MCP عبر HTTP. كل أداة لها صلاحية Auto / Ask / Off.</p></div><button class="btn icon close-sheet">✕</button></div>
   <div class="card"><h3>الأدوات الأصلية</h3><div id="nativeToolsList"></div></div>
   <div class="card"><div class="row"><div class="grow"><h3 style="margin:0">Custom HTTP Tools</h3><div class="hint">حوّل أي REST API إلى Tool بدون تعديل الكود.</div></div><button class="btn sm primary" id="addHttpToolBtn">＋ HTTP Tool</button></div><div id="httpToolsList" style="margin-top:9px"></div></div>
-  <div class="card"><div class="row"><div class="grow"><h3 style="margin:0">MCP Servers</h3><div class="hint">يدعم HTTP من المتصفح إذا كان السيرفر يسمح CORS. stdio يحتاج Backend.</div></div><div class="row"><button class="btn sm" id="mcpMarketBtn">Catalog</button><button class="btn sm primary" id="addMcpBtn">＋ Server</button></div></div></div>
+  <div class="card"><div class="row"><div class="grow"><h3 style="margin:0">MCP Servers</h3><div class="hint">Remote HTTP MCP يمر عبر Serverless gateway محمي من SSRF، لذلك لا يعتمد على CORS. stdio المحلي غير مناسب لـVercel ويحتاج Gateway خارجي.</div></div><div class="row"><button class="btn sm" id="mcpMarketBtn">Catalog</button><button class="btn sm primary" id="addMcpBtn">＋ Server</button></div></div></div>
   <div id="mcpList"></div>
 </div></div>
 
@@ -182,7 +188,7 @@
 </div></div>
 
 <div class="backdrop" id="timelineSheet"><div class="sheet">
- <div class="sheet-head"><div class="grow"><h2>Agent Activity</h2><p class="sub">سجل الأدوات والـrouting والـcontext بدون عرض التفكير الداخلي.</p></div><button class="btn icon close-sheet">✕</button></div><div class="stats"><div class="stat"><b id="timelineCalls">0</b><small>Tool events</small></div><div class="stat"><b id="timelineDone">0</b><small>Completed</small></div><div class="stat"><b id="timelineErrors">0</b><small>Errors</small></div></div><div style="height:12px"></div><div class="timeline" id="timelineList"></div>
+ <div class="sheet-head"><div class="grow"><h2>Agent Activity</h2><p class="sub">سجل الأدوات والـrouting والـcontext بدون عرض التفكير الداخلي.</p></div><button class="btn icon close-sheet">✕</button></div><div class="stats"><div class="stat"><b id="timelineCalls">0</b><small>Tool events</small></div><div class="stat"><b id="timelineDone">0</b><small>Completed</small></div><div class="stat"><b id="timelineErrors">0</b><small>Errors</small></div></div><div style="height:12px"></div><div class="timeline" id="timelineList"></div><div style="height:12px"></div><div class="card"><div class="row"><div class="grow"><h3 style="margin:0">Agent Evals</h3><div class="hint">آخر تقييمات correctness/security/verification المحفوظة محليًا.</div></div><button class="btn sm" id="refreshEvalsBtn">تحديث</button></div><div id="evalsList" style="margin-top:9px"></div></div>
 </div></div>
 
 
