@@ -63,7 +63,7 @@
 
 <div class="backdrop" id="settingsSheet"><div class="sheet">
   <div class="sheet-head"><div class="grow"><h2>الإعدادات</h2><p class="sub">Model واحد لكل محادثة. الإعدادات العامة تحفظ محليًا، أما مفاتيح الـAPI فتبقى داخل Vercel Environment Variables ولا تصل للمتصفح.</p></div><button class="btn icon close-sheet">✕</button></div>
-  <div class="notice">نسخة Vercel: مفاتيح OpenCode Zen وHermes وGemini وOpenRouter وJina تُقرأ فقط داخل Serverless Functions. Hermes يحتاج HERMES_BASE_URL قابلًا للوصول من Vercel، وليس 127.0.0.1 على جهازك.</div>
+  <div class="notice">نسخة Vercel: مفاتيح OpenCode Zen وHermes وGemini وOpenRouter وExa تُقرأ فقط داخل Serverless Functions. Hermes يحتاج HERMES_BASE_URL قابلًا للوصول من Vercel، وليس 127.0.0.1 على جهازك.</div>
   <div class="card">
     <h3>الموديل</h3>
     <div class="grid2"><div><label class="label">Provider</label><select class="field" id="provider"><option value="opencode">OpenCode Zen</option><option value="hermes">Hermes Agent</option><option value="gemini">Gemini API</option><option value="openrouter">OpenRouter API</option></select></div><div><label class="label">Model</label><input class="field" id="model" placeholder="مثال: gemini-2.5-flash" /></div></div>
@@ -74,7 +74,9 @@
     <div class="hint">Native Runs يستخدم /v1/runs وSSE الخاص بـHermes ويعرض نشاط أدواته وSubagents. AiWay Loop يبقي تنفيذ الأدوات داخل المتصفح كما كان.</div>
   </div>
   <div class="card"><h3>API Secrets</h3>
-    <div class="notice" style="margin:0">تُدار مفاتيح المزودين من Vercel → Project → Settings → Environment Variables. لا تضع مفاتيح المزودين داخل هذا الملف.</div>
+    <div class="notice" style="margin:0">تُدار مفاتيح المزودين من Vercel → Project → Settings → Environment Variables. ويمكن إدخال Exa مؤقتًا للجلسة بدون حفظه محليًا.</div>
+    <div style="height:8px"></div><label class="label">Exa Search API Key <span class="sub">(اختياري للجلسة)</span></label><input class="field" id="exaApiKey" type="password" autocomplete="off" placeholder="EXA_API_KEY — لا يُحفظ محليًا" />
+    <div class="hint">لو EXA_API_KEY موجود على Vercel اتركه فارغًا. إذا أدخلته هنا يبقى في ذاكرة الصفحة فقط ويُرسل مباشرة إلى /api/search ولا يدخل المحادثة.</div>
     <div style="height:8px"></div><label class="label">App Access Key <span class="sub">(اختياري)</span></label><input class="field" id="appAccessKey" type="password" autocomplete="off" placeholder="APP_ACCESS_KEY إذا فعلته على Vercel" />
     <div class="hint">لو ضبطت APP_ACCESS_KEY في Vercel، أدخله هنا لكل جلسة لحماية استهلاك مفاتيح الـAI من الزوار. لا يتم حفظه في IndexedDB.</div>
     <div style="height:8px"></div><button class="btn sm" id="testServerApiBtn">اختبار Server API</button>
