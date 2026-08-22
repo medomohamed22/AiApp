@@ -38,6 +38,14 @@ export default async function handler(req, res) {
       res.setHeader('X-AiWay-OpenCode-API', result.protocol);
       if (result.normalized) return;
       upstream = result.upstream;
+    } else if (provider === 'hermes' && (!String(process.env.HERMES_BASE_URL || '').trim() || !String(process.env.HERMES_API_KEY || '').trim())) {
+      const missing = ['HERMES_BASE_URL', 'HERMES_API_KEY'].filter(name => !String(process.env[name] || '').trim());
+      return json(res, 503, {
+        error: {
+          code: 'HERMES_NOT_CONFIGURED',
+          message: `Hermes غير مُعد على نسخة Vercel الحالية. أضف ${missing.join(' و ')} في Vercel Environment Variables. HERMES_BASE_URL لازم يكون عنوان Hermes Gateway يمكن لـVercel الوصول إليه عبر HTTP/HTTPS، وليس localhost أو 127.0.0.1.`
+        }
+      });
     } else if (provider === 'hermes' && payload?.aiway_native_run === true) {
       const nextPayload = structuredClone(payload);
       delete nextPayload.aiway_native_run;

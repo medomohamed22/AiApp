@@ -208,10 +208,22 @@ export default async function handler(req, res) {
       }));
       if (!details.length) throw new Error(`OpenCode Zen returned an empty model catalog.`);
     } else if (provider === 'hermes') {
+      const missing = ['HERMES_BASE_URL', 'HERMES_API_KEY'].filter(name => !String(process.env[name] || '').trim());
+      if (missing.length) {
+        return json(res, 200, {
+          models: [], details: [], capabilities: null,
+          configuration: {
+            configured: false,
+            missing,
+            message: 'Hermes Agent is not configured on this Vercel deployment. Set HERMES_BASE_URL to a remotely reachable Hermes gateway and HERMES_API_KEY to its API_SERVER_KEY.',
+            localOnlyWarning: '127.0.0.1/localhost on your phone or computer cannot be reached by Vercel Serverless Functions.'
+          }
+        });
+      }
       try { capabilities = await hermesCapabilities(); } catch {}
-      const configuredBase = normalizeBaseUrl(env('HERMES_BASE_URL'));
+      const configuredBase = normalizeBaseUrl(process.env.HERMES_BASE_URL);
       const base = configuredBase.replace(/\/v1$/i, '');
-      const headers = { Authorization: `Bearer ${env('HERMES_API_KEY')}` };
+      const headers = { Authorization: `Bearer ${process.env.HERMES_API_KEY}` };
       let richError = null;
       try {
         const rich = await fetch(`${base}/api/model/options?refresh=1`, { headers });

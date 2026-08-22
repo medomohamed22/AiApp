@@ -21,6 +21,42 @@ function textOf(content){
 }
 function toolDefs(tools=[]){return (tools||[]).map(t=>t?.function||t).filter(t=>t?.name)}
 
+function stableJsonArguments(value){
+  if(value && typeof value === 'object') return JSON.stringify(value);
+  const raw=String(value ?? '').trim();
+  if(!raw) return '{}';
+  try {
+    const parsed=JSON.parse(raw);
+    return JSON.stringify(parsed && typeof parsed === 'object' ? parsed : {value: parsed});
+  } catch {
+    return '{}';
+  }
+}
+
+export function sanitizeOpenAIChatPayload(payload={}){
+  const out={...payload};
+  out.messages=(Array.isArray(payload.messages)?payload.messages:[]).map(message=>{
+    if(!message || typeof message!=='object') return message;
+    const m={...message};
+    if(Array.isArray(m.tool_calls)) m.tool_calls=m.tool_calls.map((call,index)=>({
+      ...call,
+      id:String(call?.id||`call_${index}`),
+      type:'function',
+      function:{
+        ...(call?.function||{}),
+        name:String(call?.function?.name||''),
+        arguments:stableJsonArguments(call?.function?.arguments),
+      },
+    })).filter(call=>call.function.name);
+    if(m.role==='tool'){
+      m.tool_call_id=String(m.tool_call_id||'');
+      if(typeof m.content!=='string') m.content=JSON.stringify(m.content??{});
+    }
+    return m;
+  });
+  return out;
+}
+
 function toResponsesPayload(p){
   const messages=Array.isArray(p.messages)?p.messages:[];
   const system=messages.filter(m=>m.role==='system').map(m=>textOf(m.content)).join('\n\n');
@@ -100,7 +136,8 @@ export async function proxyOpenCode(payload,res){
     if(protocol==='gemini')headers['x-goog-api-key']=process.env.OPENCODE_API_KEY;
   }
   if(protocol==='chat/completions'){
-    const {response,url}=await fetchOpenCode('/chat/completions',{method:'POST',headers,body:JSON.stringify(payload),cache:'no-store'});
+    const safePayload=sanitizeOpenAIChatPayload(payload);
+    const {response,url}=await fetchOpenCode('/chat/completions',{method:'POST',headers,body:JSON.stringify(safePayload),cache:'no-store'});
     return {upstream:response,url,protocol,normalized:false};
   }
   let path,body;
