@@ -1,4 +1,5 @@
-import { allowMethod, bodyJson, env, json, pipeFetch, fetchOpenCode, requireAppAccess, rateLimit } from './_utils.js';
+import { allowMethod, bodyJson, env, json, pipeFetch, requireAppAccess, rateLimit } from './_utils.js';
+import { proxyOpenCode, proxyHermesRun } from './_provider_adapters.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -32,14 +33,16 @@ export default async function handler(req, res) {
         body: JSON.stringify(payload),
       });
     } else if (provider === 'opencode') {
-      const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-      if (process.env.OPENCODE_API_KEY) headers.Authorization = `Bearer ${process.env.OPENCODE_API_KEY}`;
-      const result = await fetchOpenCode('/chat/completions', {
-        method: 'POST', headers, body: JSON.stringify(payload), cache: 'no-store',
-      });
-      upstream = result.response;
+      const result = await proxyOpenCode(payload, res);
       res.setHeader('X-AiWay-OpenCode-Gateway', new URL(result.url).host);
-      res.setHeader('X-AiWay-OpenCode-API', 'zen-v1');
+      res.setHeader('X-AiWay-OpenCode-API', result.protocol);
+      if (result.normalized) return;
+      upstream = result.upstream;
+    } else if (provider === 'hermes' && payload?.aiway_native_run === true) {
+      const nextPayload = structuredClone(payload);
+      delete nextPayload.aiway_native_run;
+      await proxyHermesRun({ payload: nextPayload, sessionId: req.headers?.['x-aiway-chat-id'] }, res);
+      return;
     } else if (provider === 'hermes') {
       const base = cleanHermesBase(env('HERMES_BASE_URL'));
       const chatBase = base.endsWith('/v1') ? base : `${base}/v1`;
@@ -55,6 +58,7 @@ export default async function handler(req, res) {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${env('HERMES_API_KEY')}`,
+          ...(req.headers?.['x-aiway-chat-id'] ? { 'X-Hermes-Session-Id': String(req.headers['x-aiway-chat-id']).slice(0, 256) } : {}),
         },
         body: JSON.stringify(nextPayload),
       });

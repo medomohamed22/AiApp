@@ -1,4 +1,5 @@
 import { allowMethod, env, json, fetchOpenCode, requireAppAccess, rateLimit } from './_utils.js';
+import { openCodeProtocol, hermesCapabilities } from './_provider_adapters.js';
 
 function pricingNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -117,6 +118,7 @@ export default async function handler(req, res) {
   try {
     const provider = String(req.query?.provider || 'gemini').toLowerCase();
     let details = [];
+    let capabilities = null;
 
     if (provider === 'gemini') {
       const key = env('GEMINI_API_KEY');
@@ -191,43 +193,22 @@ export default async function handler(req, res) {
       }
       if (!d) throw new Error(`OpenCode returned an empty models response from ${resolvedUrl}`);
 
-      // Zen /models is the source of truth. This app currently speaks the
-      // OpenAI-compatible Chat Completions protocol, so keep only models whose
-      // current Zen endpoint is /chat/completions. Other Zen models use
-      // /responses, /messages, or the Gemini protocol and need different payloads.
-      // /models does not expose each model's protocol. Keep this list aligned
-      // with OpenCode Zen's documented OpenAI-compatible /chat/completions table.
-      const chatCompatibleIds = new Set([
-        'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-free',
-        'minimax-m3', 'minimax-m2.7', 'minimax-m2.5',
-        'glm-5.2', 'glm-5.1', 'glm-5',
-        'kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3',
-        'big-pickle', 'x-preview-f-free', 'mimo-v2.5-free', 'hy3-free', 'laguna-s-2.1-free',
-        'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free'
-      ]);
-
-      // Keep free Zen models easy to discover even if the upstream /models
-      // payload temporarily omits pricing metadata. These IDs are documented as
-      // free and Chat Completions compatible by OpenCode Zen.
+      // Zen /models is the source of truth. AiWay now supports all documented
+      // Zen protocol families and routes each model automatically.
       const documentedFreeIds = new Set([
         'big-pickle', 'x-preview-f-free', 'mimo-v2.5-free', 'hy3-free',
         'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free',
-        'deepseek-v4-flash-free', 'laguna-s-2.1-free'
+        'deepseek-v4-flash-free', 'laguna-s-2.1-free', 'muse-spark-1.2-contributor-free'
       ]);
-
-      details = modelDetailsFromOpenAI(d.data || d.models, 'opencode')
-        .filter(item => chatCompatibleIds.has(item.id))
-        .map(item => ({
-          ...item,
-          tier: documentedFreeIds.has(item.id) ? 'free' : item.tier,
-          label: item.id === 'x-preview-f-free' ? 'Ox Alpha Free' : item.label,
-          api: 'chat/completions'
-        }));
-
-      if (!details.length) {
-        throw new Error(`OpenCode Zen returned models, but none matched the app's Chat Completions compatibility list. Update api/models.js to the latest Zen catalog.`);
-      }
+      details = modelDetailsFromOpenAI(d.data || d.models, 'opencode').map(item => ({
+        ...item,
+        tier: documentedFreeIds.has(item.id) ? 'free' : item.tier,
+        label: item.id === 'x-preview-f-free' ? 'Ox Alpha Free' : item.id === 'muse-spark-1.2-contributor-free' ? 'Muse Spark 1.2 Contributor Free' : item.label,
+        api: openCodeProtocol(item.id),
+      }));
+      if (!details.length) throw new Error(`OpenCode Zen returned an empty model catalog.`);
     } else if (provider === 'hermes') {
+      try { capabilities = await hermesCapabilities(); } catch {}
       const configuredBase = normalizeBaseUrl(env('HERMES_BASE_URL'));
       const base = configuredBase.replace(/\/v1$/i, '');
       const headers = { Authorization: `Bearer ${env('HERMES_API_KEY')}` };
@@ -256,7 +237,7 @@ export default async function handler(req, res) {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-    res.end(JSON.stringify({ models: deduped.map(x => x.id), details: deduped }));
+    res.end(JSON.stringify({ models: deduped.map(x => x.id), details: deduped, capabilities }));
   } catch (error) {
     json(res, 500, { error: error?.message || 'Server error' });
   }
