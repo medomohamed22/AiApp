@@ -1,11 +1,12 @@
-import { allowMethod, env, json } from './_utils.js';
+import { allowMethod, env, json, secureEqual, rateLimit } from './_utils.js';
 
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['POST'])) return;
+  if (!rateLimit(req, res, { key: 'publish-check', limit: 12 })) return;
   res.setHeader('Cache-Control', 'no-store');
   try {
     const secret = env('PUBLISH_SECRET');
-    if (req.headers['x-aiway-publish-key'] !== secret) return json(res, 401, { error: 'Publishing access key is invalid.' });
+    if (!secureEqual(req.headers['x-aiway-publish-key'], secret)) return json(res, 401, { error: 'Publishing access key is invalid.' });
 
     const githubToken = env('GITHUB_TOKEN');
     const vercelToken = env('VERCEL_TOKEN');

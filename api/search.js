@@ -1,8 +1,9 @@
-import { allowMethod, env, json, requireAppAccess } from './_utils.js';
+import { allowMethod, env, json, requireAppAccess, rateLimit } from './_utils.js';
 
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['GET'])) return;
   if (!requireAppAccess(req, res)) return;
+  if (!rateLimit(req, res, { key: 'search', limit: 20 })) return;
   try {
     const q = String(req.query?.q || '').trim();
     if (!q) return json(res, 400, { error: 'q is required' });

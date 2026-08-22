@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 export function json(res, status, data) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -20,12 +22,47 @@ export function env(name) {
   return value;
 }
 
+export function secureEqual(a, b) {
+  const left = Buffer.from(String(a ?? ''), 'utf8');
+  const right = Buffer.from(String(b ?? ''), 'utf8');
+  if (left.length !== right.length || !left.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
 export function requireAppAccess(req, res) {
   const expected = String(process.env.APP_ACCESS_KEY || '').trim();
   if (!expected) return true;
   const supplied = String(req.headers?.['x-aiway-access-key'] || '');
-  if (supplied === expected) return true;
+  if (secureEqual(supplied, expected)) return true;
   json(res, 401, { error: 'App access key is required or invalid.' });
+  return false;
+}
+
+const RATE_BUCKETS = new Map();
+function clientIp(req) {
+  const forwarded = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || String(req.headers?.['x-real-ip'] || req.socket?.remoteAddress || 'unknown');
+}
+
+export function rateLimit(req, res, { key = 'api', limit = 40, windowMs = 60_000 } = {}) {
+  const configured = Number(process.env.AIWAY_RATE_LIMIT_PER_MINUTE);
+  if (Number.isFinite(configured) && configured <= 0) return true;
+  const effectiveLimit = Number.isFinite(configured) && configured > 0 ? Math.min(limit, Math.floor(configured)) : limit;
+  const now = Date.now();
+  const bucketKey = `${key}:${clientIp(req)}`;
+  let bucket = RATE_BUCKETS.get(bucketKey);
+  if (!bucket || now >= bucket.resetAt) bucket = { count: 0, resetAt: now + windowMs };
+  bucket.count += 1;
+  RATE_BUCKETS.set(bucketKey, bucket);
+  if (RATE_BUCKETS.size > 5000) {
+    for (const [k, v] of RATE_BUCKETS) if (now >= v.resetAt) RATE_BUCKETS.delete(k);
+  }
+  res.setHeader('X-RateLimit-Limit', String(effectiveLimit));
+  res.setHeader('X-RateLimit-Remaining', String(Math.max(0, effectiveLimit - bucket.count)));
+  res.setHeader('X-RateLimit-Reset', String(Math.ceil(bucket.resetAt / 1000)));
+  if (bucket.count <= effectiveLimit) return true;
+  res.setHeader('Retry-After', String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
+  json(res, 429, { error: 'Too many requests. Try again shortly.' });
   return false;
 }
 
@@ -63,6 +100,7 @@ export async function pipeFetch(upstream, res) {
       res.write(Buffer.from(value));
     }
   } finally {
+    try { reader.releaseLock(); } catch {}
     res.end();
   }
 }
@@ -84,16 +122,12 @@ export async function fetchOpenCode(path, init = {}) {
       if (response.ok) return { response, url, attempts };
       const body = await response.clone().text().catch(() => '');
       attempts.push({ url, status: response.status, body: body.replace(/\s+/g, ' ').slice(0, 300) });
-      if (![404, 405, 408, 410, 429, 500, 502, 503, 504].includes(response.status)) {
-        return { response, url, attempts };
-      }
+      if (![404, 405, 408, 410, 429, 500, 502, 503, 504].includes(response.status)) return { response, url, attempts };
     } catch (error) {
       attempts.push({ url, error: error?.message || String(error) });
     }
   }
   const last = attempts[attempts.length - 1];
-  const detail = last?.status
-    ? `HTTP ${last.status}${last.body ? `: ${last.body}` : ''}`
-    : (last?.error || 'network error');
+  const detail = last?.status ? `HTTP ${last.status}${last.body ? `: ${last.body}` : ''}` : (last?.error || 'network error');
   throw new Error(`OpenCode Zen unavailable (${detail})`);
 }

@@ -1,4 +1,4 @@
-import { allowMethod, bodyJson, env, json } from './_utils.js';
+import { allowMethod, bodyJson, env, json, secureEqual, rateLimit } from './_utils.js';
 
 const GH_API = 'https://api.github.com';
 const VERCEL_API = 'https://api.vercel.com';
@@ -118,12 +118,13 @@ function partialPayload({repo,fullRepo,project,stage,error}){
 
 export default async function handler(req,res){
   if(!allowMethod(req,res,['POST']))return;
+  if(!rateLimit(req,res,{key:'publish',limit:8}))return;
   res.setHeader('Cache-Control','no-store');
   let stage='authorize',repo=null,fullRepo='',project=null;
   try{
     const publishKey=env('PUBLISH_SECRET');
     const supplied=req.headers['x-aiway-publish-key'];
-    if(!supplied||supplied!==publishKey)return json(res,401,{error:'Publishing access key is invalid.',stage});
+    if(!secureEqual(supplied,publishKey))return json(res,401,{error:'Publishing access key is invalid.',stage});
     const githubToken=env('GITHUB_TOKEN'),vercelToken=env('VERCEL_TOKEN');
     const teamId=process.env.VERCEL_TEAM_ID||process.env.VERCEL_ORG_ID||'';
     const input=await bodyJson(req),files=Array.isArray(input.files)?input.files:[];

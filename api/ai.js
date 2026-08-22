@@ -1,4 +1,4 @@
-import { allowMethod, bodyJson, env, json, pipeFetch, fetchOpenCode, requireAppAccess } from './_utils.js';
+import { allowMethod, bodyJson, env, json, pipeFetch, fetchOpenCode, requireAppAccess, rateLimit } from './_utils.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -12,6 +12,7 @@ function cleanHermesBase(raw) {
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['POST'])) return;
   if (!requireAppAccess(req, res)) return;
+  if (!rateLimit(req, res, { key: 'ai', limit: 30 })) return;
   try {
     const { provider, model, payload } = await bodyJson(req);
     if (!provider || !payload || typeof payload !== 'object') {

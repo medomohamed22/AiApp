@@ -1,4 +1,4 @@
-import {allowMethod,bodyJson,env,json} from './_utils.js';
+import {allowMethod,bodyJson,env,json,secureEqual,rateLimit} from './_utils.js';
 
 const VERCEL_API='https://api.vercel.com';
 function vercelHeaders(token){return{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}}
@@ -9,10 +9,11 @@ function cleanTargets(target){const allowed=new Set(['production','preview','dev
 
 export default async function handler(req,res){
   if(!allowMethod(req,res,['POST']))return;
+  if(!rateLimit(req,res,{key:'environment',limit:20}))return;
   res.setHeader('Cache-Control','no-store');
   try{
     const publishKey=env('PUBLISH_SECRET');
-    if(!req.headers['x-aiway-publish-key']||req.headers['x-aiway-publish-key']!==publishKey)return json(res,401,{error:'Publishing access key is invalid.'});
+    if(!secureEqual(req.headers['x-aiway-publish-key'],publishKey))return json(res,401,{error:'Publishing access key is invalid.'});
     const token=env('VERCEL_TOKEN'),teamId=process.env.VERCEL_TEAM_ID||process.env.VERCEL_ORG_ID||'';
     const input=await bodyJson(req),action=String(input.action||'list'),projectId=String(input.projectId||input.projectName||'').trim();
     if(!projectId)return json(res,400,{error:'A Vercel project id or name is required.'});

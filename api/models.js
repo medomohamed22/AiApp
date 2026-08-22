@@ -1,4 +1,4 @@
-import { allowMethod, env, json, fetchOpenCode, requireAppAccess } from './_utils.js';
+import { allowMethod, env, json, fetchOpenCode, requireAppAccess, rateLimit } from './_utils.js';
 
 function pricingNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -42,18 +42,22 @@ function positiveInt(...values) {
 function modelLimits(item = {}) {
   const top = item?.top_provider || item?.topProvider || {};
   const limits = item?.limits || item?.limit || {};
-  return {
-    contextWindow: positiveInt(
-      item?.context_length, item?.contextLength, item?.context_window, item?.contextWindow,
-      item?.inputTokenLimit, item?.input_token_limit, item?.max_input_tokens, item?.maxInputTokens,
-      limits?.context, limits?.contextWindow, limits?.input, limits?.inputTokens
-    ),
-    maxOutputTokens: positiveInt(
-      item?.max_completion_tokens, item?.maxCompletionTokens, item?.max_output_tokens, item?.maxOutputTokens,
-      item?.outputTokenLimit, item?.output_token_limit, top?.max_completion_tokens, top?.maxCompletionTokens,
-      limits?.output, limits?.outputTokens, limits?.completion
-    ),
-  };
+  const contextWindow = positiveInt(
+    item?.context_length, item?.contextLength, item?.context_window, item?.contextWindow,
+    item?.inputTokenLimit, item?.input_token_limit, item?.max_input_tokens, item?.maxInputTokens,
+    limits?.context, limits?.contextWindow, limits?.input, limits?.inputTokens
+  );
+  const maxOutputTokens = positiveInt(
+    item?.max_completion_tokens, item?.maxCompletionTokens, item?.max_output_tokens, item?.maxOutputTokens,
+    item?.outputTokenLimit, item?.output_token_limit, top?.max_completion_tokens, top?.maxCompletionTokens,
+    limits?.output, limits?.outputTokens, limits?.completion
+  );
+  const providerLimitsDeclared = Boolean(positiveInt(
+    top?.max_completion_tokens, top?.maxCompletionTokens,
+    limits?.context, limits?.contextWindow, limits?.input, limits?.inputTokens,
+    limits?.output, limits?.outputTokens, limits?.completion
+  ));
+  return { contextWindow, maxOutputTokens, providerLimitsDeclared };
 }
 
 function modelDetailsFromOpenAI(data = [], provider) {
@@ -109,6 +113,7 @@ function hermesDetails(payload) {
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['GET'])) return;
   if (!requireAppAccess(req, res)) return;
+  if (!rateLimit(req, res, { key: 'models', limit: 60 })) return;
   try {
     const provider = String(req.query?.provider || 'gemini').toLowerCase();
     let details = [];
@@ -132,6 +137,7 @@ export default async function handler(req, res) {
             pricing: null,
             contextWindow: positiveInt(m.inputTokenLimit, m.input_token_limit),
             maxOutputTokens: positiveInt(m.outputTokenLimit, m.output_token_limit),
+            providerLimitsDeclared: Boolean(positiveInt(m.inputTokenLimit, m.input_token_limit, m.outputTokenLimit, m.output_token_limit)),
           }))
           .filter(m => m.id));
         pageToken = d.nextPageToken || '';
