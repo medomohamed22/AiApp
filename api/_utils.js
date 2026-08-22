@@ -67,7 +67,12 @@ export function rateLimit(req, res, { key = 'api', limit = 40, windowMs = 60_000
 }
 
 export async function bodyJson(req, maxBytes = 2_000_000) {
-  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body;
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    let encoded;
+    try { encoded = JSON.stringify(req.body); } catch { throw new Error('Request body must be valid JSON'); }
+    if (Buffer.byteLength(encoded || '', 'utf8') > maxBytes) throw new Error('Request body is too large');
+    return req.body;
+  }
   if (typeof req.body === 'string') {
     if (Buffer.byteLength(req.body, 'utf8') > maxBytes) throw new Error('Request body is too large');
     return req.body.trim() ? JSON.parse(req.body) : {};
@@ -80,7 +85,16 @@ export async function bodyJson(req, maxBytes = 2_000_000) {
   return raw.trim() ? JSON.parse(raw) : {};
 }
 
-export async function pipeFetch(upstream, res) {
+export function requestAbortSignal(req, res) {
+  const controller = new AbortController();
+  const abort = () => { if (!controller.signal.aborted) controller.abort(new DOMException('Client disconnected', 'AbortError')); };
+  req?.once?.('aborted', abort);
+  req?.once?.('close', () => { if (req.aborted) abort(); });
+  res?.once?.('close', () => { if (!res.writableEnded) abort(); });
+  return controller.signal;
+}
+
+export async function pipeFetch(upstream, res, signal) {
   res.statusCode = upstream.status;
   const contentType = upstream.headers.get('content-type');
   if (contentType) res.setHeader('Content-Type', contentType);
@@ -95,13 +109,14 @@ export async function pipeFetch(upstream, res) {
   const reader = upstream.body.getReader();
   try {
     while (true) {
+      if (signal?.aborted || res.destroyed) break;
       const { value, done } = await reader.read();
       if (done) break;
       res.write(Buffer.from(value));
     }
   } finally {
     try { reader.releaseLock(); } catch {}
-    res.end();
+    if (!res.writableEnded && !res.destroyed) res.end();
   }
 }
 

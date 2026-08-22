@@ -1,4 +1,4 @@
-import { allowMethod, bodyJson, env, json, pipeFetch, requireAppAccess, rateLimit } from './_utils.js';
+import { allowMethod, bodyJson, env, json, pipeFetch, requireAppAccess, rateLimit, requestAbortSignal } from './_utils.js';
 import { proxyOpenCode, proxyHermesRun } from './_provider_adapters.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -14,6 +14,7 @@ export default async function handler(req, res) {
   if (!allowMethod(req, res, ['POST'])) return;
   if (!requireAppAccess(req, res)) return;
   if (!rateLimit(req, res, { key: 'ai', limit: 30 })) return;
+  const signal = requestAbortSignal(req, res);
   try {
     const { provider, model, payload } = await bodyJson(req);
     if (!provider || !payload || typeof payload !== 'object') {
@@ -31,9 +32,10 @@ export default async function handler(req, res) {
           'X-Title': 'AiWay',
         },
         body: JSON.stringify(payload),
+        signal,
       });
     } else if (provider === 'opencode') {
-      const result = await proxyOpenCode(payload, res);
+      const result = await proxyOpenCode(payload, res, signal);
       res.setHeader('X-AiWay-OpenCode-Gateway', new URL(result.url).host);
       res.setHeader('X-AiWay-OpenCode-API', result.protocol);
       if (result.normalized) return;
@@ -49,7 +51,7 @@ export default async function handler(req, res) {
     } else if (provider === 'hermes' && payload?.aiway_native_run === true) {
       const nextPayload = structuredClone(payload);
       delete nextPayload.aiway_native_run;
-      await proxyHermesRun({ payload: nextPayload, sessionId: req.headers?.['x-aiway-chat-id'] }, res);
+      await proxyHermesRun({ payload: nextPayload, sessionId: req.headers?.['x-aiway-chat-id'], signal }, res);
       return;
     } else if (provider === 'hermes') {
       const base = cleanHermesBase(env('HERMES_BASE_URL'));
@@ -69,6 +71,7 @@ export default async function handler(req, res) {
           ...(req.headers?.['x-aiway-chat-id'] ? { 'X-Hermes-Session-Id': String(req.headers['x-aiway-chat-id']).slice(0, 256) } : {}),
         },
         body: JSON.stringify(nextPayload),
+        signal,
       });
     } else if (provider === 'gemini') {
       if (!model) return json(res, 400, { error: 'model is required for Gemini' });
@@ -79,14 +82,19 @@ export default async function handler(req, res) {
           'x-goog-api-key': env('GEMINI_API_KEY'),
         },
         body: JSON.stringify(payload),
+        signal,
       });
     } else {
       return json(res, 400, { error: 'Unsupported provider' });
     }
 
-    await pipeFetch(upstream, res);
+    await pipeFetch(upstream, res, signal);
   } catch (error) {
-    const message = error?.name === 'AbortError' ? 'Upstream request timed out' : (error?.message || 'Server error');
-    json(res, 500, { error: message });
+    if (signal.aborted || error?.name === 'AbortError') {
+      if (!res.headersSent && !res.writableEnded && !res.destroyed) json(res, 499, { error: 'Request cancelled by client' });
+      return;
+    }
+    const message = error?.message || 'Server error';
+    if (!res.writableEnded && !res.destroyed) json(res, 500, { error: message });
   }
 }

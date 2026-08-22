@@ -1,6 +1,8 @@
-import { allowMethod, json } from './_utils.js';
+import { allowMethod, json, requireAppAccess, rateLimit } from './_utils.js';
 export default function handler(req, res) {
   if (!allowMethod(req, res, ['GET'])) return;
+  if (!requireAppAccess(req, res)) return;
+  if (!rateLimit(req, res, { key: 'health', limit: 20 })) return;
   json(res, 200, {
     ok: true,
     gemini: Boolean(process.env.GEMINI_API_KEY),

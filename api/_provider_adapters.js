@@ -127,7 +127,7 @@ function responseFinalText(response){
   const out=[];for(const item of response?.output||[]){for(const part of item?.content||[]){const t=part?.text||part?.content;if(typeof t==='string'&&t)out.push(t)}}return out.join('');
 }
 
-export async function proxyOpenCode(payload,res){
+export async function proxyOpenCode(payload,res,signal){
   const protocol=openCodeProtocol(payload?.model);
   const headers={'Content-Type':'application/json','Accept':'text/event-stream'};
   if(process.env.OPENCODE_API_KEY){
@@ -137,14 +137,14 @@ export async function proxyOpenCode(payload,res){
   }
   if(protocol==='chat/completions'){
     const safePayload=sanitizeOpenAIChatPayload(payload);
-    const {response,url}=await fetchOpenCode('/chat/completions',{method:'POST',headers,body:JSON.stringify(safePayload),cache:'no-store'});
+    const {response,url}=await fetchOpenCode('/chat/completions',{method:'POST',headers,body:JSON.stringify(safePayload),cache:'no-store',signal});
     return {upstream:response,url,protocol,normalized:false};
   }
   let path,body;
   if(protocol==='responses'){path='/responses';body=toResponsesPayload(payload)}
   else if(protocol==='messages'){path='/messages';body=toAnthropicPayload(payload)}
   else {path=`/models/${encodeURIComponent(payload.model)}:streamGenerateContent?alt=sse`;body=toGeminiPayload(payload)}
-  const {response:upstream,url}=await fetchOpenCode(path,{method:'POST',headers,body:JSON.stringify(body),cache:'no-store'});
+  const {response:upstream,url}=await fetchOpenCode(path,{method:'POST',headers,body:JSON.stringify(body),cache:'no-store',signal});
   if(!upstream.ok)return {upstream,url,protocol,normalized:false};
   startSSE(res,protocol);
   const toolState=new Map();let finish=null,usage=null,emittedText='';
@@ -175,22 +175,23 @@ export async function proxyOpenCode(payload,res){
 function hermesBase(){const u=new URL(env('HERMES_BASE_URL'));if(!['http:','https:'].includes(u.protocol))throw new Error('HERMES_BASE_URL must use http or https');return u.toString().replace(/\/+$/,'').replace(/\/v1$/,'')}
 function hermesHeaders(){return {'Content-Type':'application/json','Accept':'application/json','Authorization':`Bearer ${env('HERMES_API_KEY')}`}}
 export async function hermesCapabilities(){const base=hermesBase();const r=await fetch(`${base}/v1/capabilities`,{headers:hermesHeaders(),cache:'no-store'});if(!r.ok)return null;return await r.json()}
-export async function proxyHermesRun({payload,sessionId},res){
+export async function proxyHermesRun({payload,sessionId,signal},res){
   const base=hermesBase(),headers=hermesHeaders(),encoded=String(payload.model||'');let model=encoded,provider;
   if(encoded.includes('::')){[provider,...model]=encoded.split('::');model=model.join('::')}
   const msgs=payload.messages||[],instructions=msgs.filter(m=>m.role==='system').map(m=>textOf(m.content)).join('\n\n');
   const history=msgs.filter(m=>m.role!=='system').slice(0,-1).map(m=>({role:m.role,content:textOf(m.content)}));const input=textOf(msgs.at(-1)?.content)||'Continue';
-  const create=await fetch(`${base}/v1/runs`,{method:'POST',headers,body:JSON.stringify({input,instructions,conversation_history:history,session_id:sessionId||undefined,model,provider,model_options:{}})});
+  const create=await fetch(`${base}/v1/runs`,{method:'POST',headers,body:JSON.stringify({input,instructions,conversation_history:history,session_id:sessionId||undefined,model,provider,model_options:{}}),signal});
   const cd=await create.json().catch(()=>({}));if(!create.ok)throw new Error(cd?.error?.message||cd?.error||`Hermes run HTTP ${create.status}`);const runId=cd.run_id;if(!runId)throw new Error('Hermes did not return run_id');
   res.setHeader('X-AiWay-Hermes-Run-Id',runId);startSSE(res,'hermes-runs');
   let finished=false, emittedText=false;
   res.on?.('close',()=>{ if(!finished) fetch(`${base}/v1/runs/${encodeURIComponent(runId)}/stop`,{method:'POST',headers}).catch(()=>{}); });
-  const events=await fetch(`${base}/v1/runs/${encodeURIComponent(runId)}/events`,{headers:{Authorization:`Bearer ${env('HERMES_API_KEY')}`,Accept:'text/event-stream'}});
+  const events=await fetch(`${base}/v1/runs/${encodeURIComponent(runId)}/events`,{headers:{Authorization:`Bearer ${env('HERMES_API_KEY')}`,Accept:'text/event-stream'},signal});
   if(!events.ok)throw new Error(`Hermes run events HTTP ${events.status}`);
   await readSSE(events,(event,raw)=>{if(!raw)return;let d;try{d=JSON.parse(raw)}catch{d={message:raw}};const type=event||d.type||d.event||'';
     const delta=d.delta||d.text_delta||d.text;if(/assistant.*delta|token.*delta|response.*delta/i.test(type)&&typeof delta==='string'){emittedText=true;writeData(res,chatChunk({content:delta}))}
     else if(/tool|subagent|approval|run\./i.test(type))writeData(res,{object:'hermes.activity',type,detail:d},'hermes.activity');
   });
-  const status=await fetch(`${base}/v1/runs/${encodeURIComponent(runId)}`,{headers:{Authorization:`Bearer ${env('HERMES_API_KEY')}`}});const sd=await status.json().catch(()=>({}));
+  if(signal?.aborted)return;
+  const status=await fetch(`${base}/v1/runs/${encodeURIComponent(runId)}`,{headers:{Authorization:`Bearer ${env('HERMES_API_KEY')}`},signal});const sd=await status.json().catch(()=>({}));
   if(sd.output&&!emittedText)writeData(res,chatChunk({content:String(sd.output)}));writeData(res,chatChunk({},sd.status==='cancelled'?'cancelled':'stop',sd.usage));writeData(res,'[DONE]');finished=true;res.end();
 }
