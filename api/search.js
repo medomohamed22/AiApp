@@ -1,5 +1,34 @@
 import { allowMethod, env, json, requireAppAccess, rateLimit } from './_utils.js';
 
+function exaKey(req) {
+  const fromHeader = String(req.headers?.['x-aiway-exa-key'] || '').trim();
+  return fromHeader || env('EXA_API_KEY');
+}
+
+function cleanText(value, max = 4000) {
+  return String(value || '').replace(/\u0000/g, '').trim().slice(0, max);
+}
+
+function formatResults(data) {
+  const results = Array.isArray(data?.results) ? data.results : [];
+  if (!results.length) return 'No Exa search results found.';
+  return results.slice(0, 10).map((item, index) => {
+    const title = cleanText(item?.title || item?.url || `Result ${index + 1}`, 500);
+    const url = cleanText(item?.url, 2000);
+    const published = cleanText(item?.publishedDate || item?.published_date, 100);
+    const highlights = Array.isArray(item?.highlights)
+      ? item.highlights.map(x => cleanText(x, 2200)).filter(Boolean).join('\n')
+      : '';
+    const text = highlights || cleanText(item?.text || item?.summary, 3500);
+    return [
+      `## ${index + 1}. ${title}`,
+      url ? `URL: ${url}` : '',
+      published ? `Published: ${published}` : '',
+      text ? `Relevant excerpt:\n${text}` : ''
+    ].filter(Boolean).join('\n');
+  }).join('\n\n');
+}
+
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['GET'])) return;
   if (!requireAppAccess(req, res)) return;
@@ -9,18 +38,44 @@ export default async function handler(req, res) {
     if (!q) return json(res, 400, { error: 'q is required' });
     if (q.length > 500) return json(res, 400, { error: 'query too long' });
 
-    const r = await fetch(`https://s.jina.ai/?q=${encodeURIComponent(q)}`, {
+    const key = exaKey(req);
+    if (!key) return json(res, 503, { error: 'EXA_API_KEY is not configured. Add it in Settings for this session or in Vercel Environment Variables.' });
+
+    const upstreamController = new AbortController();
+    const stop = () => { if (!upstreamController.signal.aborted) upstreamController.abort(); };
+    req.on?.('close', stop);
+    res.on?.('close', stop);
+
+    const r = await fetch('https://api.exa.ai/search', {
+      method: 'POST',
+      signal: upstreamController.signal,
       headers: {
-        Authorization: `Bearer ${env('JINA_API_KEY')}`,
-        Accept: 'text/plain',
+        'Content-Type': 'application/json',
+        'x-api-key': key,
       },
+      body: JSON.stringify({
+        query: q,
+        type: 'auto',
+        numResults: 8,
+        contents: { highlights: true }
+      }),
     });
-    const text = await r.text();
-    res.statusCode = r.status;
+
+    const raw = await r.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : {}; } catch {}
+    if (!r.ok) {
+      const message = cleanText(data?.error || data?.message || raw || `Exa HTTP ${r.status}`, 800);
+      return json(res, r.status, { error: message || `Exa HTTP ${r.status}` });
+    }
+
+    const text = formatResults(data);
+    res.statusCode = 200;
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.end(text);
   } catch (error) {
+    if (error?.name === 'AbortError') return;
     json(res, 500, { error: error?.message || 'Server error' });
   }
 }
