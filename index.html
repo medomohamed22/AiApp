@@ -114,6 +114,7 @@
 <div class="backdrop" id="skillsSheet"><div class="sheet">
   <div class="sheet-head"><div class="grow"><h2>Skills</h2><p class="sub">تعليمات قابلة لإعادة الاستخدام. الـAgent يرى الاسم والوصف فقط، ويقرأ المحتوى الكامل عند الحاجة.</p></div><button class="btn icon close-sheet">✕</button></div>
   <div class="row wrap" style="margin-bottom:10px"><button class="btn primary grow" id="addSkillBtn">＋ Skill جديدة</button><button class="btn" id="importSkillBtn">استيراد SKILL.md</button><input hidden type="file" id="skillFileInput" accept=".md,.txt" /></div>
+  <div class="card"><div class="row wrap"><div class="grow"><h3 style="margin:0">Self-learning Skills</h3><div class="hint">يتعلم من الـtrajectories الناجحة ويقترح Skills قابلة للمراجعة. لا يتم تفعيل أي Skill متعلمة قبل موافقتك.</div></div><select class="field" id="selfLearningSkills" style="max-width:130px"><option value="true">ON</option><option value="false">OFF</option></select><button class="btn sm" id="analyzeLearningBtn">حلّل الأنماط</button></div><div id="skillLearningStats" class="hint" style="margin-top:8px"></div><div id="skillProposals" style="margin-top:8px"></div></div>
   <div id="skillsList"></div>
 </div></div>
 
@@ -126,6 +127,7 @@
 <div class="backdrop" id="toolsSheet"><div class="sheet">
   <div class="sheet-head"><div class="grow"><h2>Tools & MCP</h2><p class="sub">الأدوات الأصلية + Remote MCP عبر HTTP. كل أداة لها صلاحية Auto / Ask / Off.</p></div><button class="btn icon close-sheet">✕</button></div>
   <div class="card"><h3>الأدوات الأصلية</h3><div id="nativeToolsList"></div></div>
+  <div class="card"><div class="row wrap"><div class="grow"><h3 style="margin:0">Persistent Vercel Sandbox</h3><div class="hint">Linux microVM حقيقي باسم ثابت لكل Project. الملفات والحزم تبقى عبر sessions بفضل Vercel persistence. الشبكة مقفولة افتراضيًا وتُفتح فقط عند طلب صريح.</div></div><span class="badge" id="sandboxStatus">غير متصل</span></div><div class="row wrap" style="margin-top:9px"><button class="btn sm" id="sandboxCheckBtn">فحص</button><button class="btn sm" id="sandboxSyncBtn">Sync Artifacts</button><button class="btn sm" id="sandboxStopBtn">Stop + Snapshot</button><button class="btn sm danger" id="sandboxDeleteBtn">Reset Sandbox</button></div><div class="log" id="sandboxLog" style="margin-top:9px">سيتم إنشاء الـSandbox أول مرة عند الاستخدام.</div></div>
   <div class="card"><div class="row"><div class="grow"><h3 style="margin:0">Custom HTTP Tools</h3><div class="hint">حوّل أي REST API إلى Tool بدون تعديل الكود.</div></div><button class="btn sm primary" id="addHttpToolBtn">＋ HTTP Tool</button></div><div id="httpToolsList" style="margin-top:9px"></div></div>
   <div class="card"><div class="row"><div class="grow"><h3 style="margin:0">MCP Servers</h3><div class="hint">Remote HTTP MCP يمر عبر Serverless gateway محمي من SSRF، لذلك لا يعتمد على CORS. stdio المحلي غير مناسب لـVercel ويحتاج Gateway خارجي.</div></div><div class="row"><button class="btn sm" id="mcpMarketBtn">Catalog</button><button class="btn sm primary" id="addMcpBtn">＋ Server</button></div></div></div>
   <div id="mcpList"></div>
