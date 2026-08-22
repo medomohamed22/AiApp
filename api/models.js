@@ -31,6 +31,31 @@ function normalizeBaseUrl(value, fallback = '') {
   return url.toString().replace(/\/+$/, '');
 }
 
+function positiveInt(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+  return null;
+}
+
+function modelLimits(item = {}) {
+  const top = item?.top_provider || item?.topProvider || {};
+  const limits = item?.limits || item?.limit || {};
+  return {
+    contextWindow: positiveInt(
+      item?.context_length, item?.contextLength, item?.context_window, item?.contextWindow,
+      item?.inputTokenLimit, item?.input_token_limit, item?.max_input_tokens, item?.maxInputTokens,
+      limits?.context, limits?.contextWindow, limits?.input, limits?.inputTokens
+    ),
+    maxOutputTokens: positiveInt(
+      item?.max_completion_tokens, item?.maxCompletionTokens, item?.max_output_tokens, item?.maxOutputTokens,
+      item?.outputTokenLimit, item?.output_token_limit, top?.max_completion_tokens, top?.maxCompletionTokens,
+      limits?.output, limits?.outputTokens, limits?.completion
+    ),
+  };
+}
+
 function modelDetailsFromOpenAI(data = [], provider) {
   return (Array.isArray(data) ? data : []).map(item => {
     const id = String(item?.id || item?.name || '').trim();
@@ -42,6 +67,7 @@ function modelDetailsFromOpenAI(data = [], provider) {
       provider,
       tier: classifyPricing(id, pricing),
       pricing,
+      ...modelLimits(item),
     };
   }).filter(Boolean);
 }
@@ -73,6 +99,7 @@ function hermesDetails(payload) {
         tier,
         pricing,
         unavailable: unavailable.has(modelId),
+        ...modelLimits(typeof model === 'object' ? model : {}),
       });
     }
   }
@@ -97,9 +124,16 @@ export default async function handler(req, res) {
         if (!r.ok) throw new Error(d?.error?.message || `Gemini HTTP ${r.status}`);
         details.push(...(d.models || [])
           .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-          .map(m => String(m.name || '').replace(/^models\//, ''))
-          .filter(Boolean)
-          .map(id => ({ id, label: id, provider: 'gemini', tier: 'unknown', pricing: null })));
+          .map(m => ({
+            id: String(m.name || '').replace(/^models\//, ''),
+            label: m.displayName || String(m.name || '').replace(/^models\//, ''),
+            provider: 'gemini',
+            tier: 'unknown',
+            pricing: null,
+            contextWindow: positiveInt(m.inputTokenLimit, m.input_token_limit),
+            maxOutputTokens: positiveInt(m.outputTokenLimit, m.output_token_limit),
+          }))
+          .filter(m => m.id));
         pageToken = d.nextPageToken || '';
       } while (pageToken);
     } else if (provider === 'openrouter') {
