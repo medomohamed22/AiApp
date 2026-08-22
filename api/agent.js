@@ -3,6 +3,108 @@ import net from 'node:net';
 import { allowMethod, bodyJson, json, rateLimit, requireAppAccess, requestAbortSignal } from './_utils.js';
 
 const MAX_RESPONSE_BYTES = 1_250_000;
+
+const SANDBOX_MAX_FILE_BYTES = 700_000;
+const SANDBOX_MAX_SYNC_BYTES = 850_000;
+const SANDBOX_COMMAND_LIMIT = 12_000;
+
+function sandboxName(projectId = "") {
+  const clean = String(projectId || "default").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "default";
+  let h = 2166136261;
+  for (const ch of String(projectId || "default")) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return `aiway-${clean}-${(h >>> 0).toString(36)}`.slice(0, 63);
+}
+function sandboxPath(path = "") {
+  const parts = [];
+  for (const bit of String(path || "").replace(/\\/g, "/").split("/")) {
+    if (!bit || bit === ".") continue;
+    if (bit === "..") { parts.pop(); continue; }
+    parts.push(bit.replace(/[\0\r\n]/g, "").slice(0, 160));
+  }
+  const out = parts.join("/");
+  if (!out || out.length > 500) throw new Error("Invalid sandbox path");
+  return out;
+}
+async function streamTextValue(value) {
+  if (typeof value === "string") return value;
+  if (typeof value === "function") return String(await value());
+  if (value && typeof value.text === "function") return String(await value.text());
+  return String(value || "");
+}
+async function getSandbox(projectId) {
+  let Sandbox;
+  try { ({ Sandbox } = await import('@vercel/sandbox')); }
+  catch { throw new Error('Vercel Sandbox SDK is unavailable. Run npm install and deploy again.'); }
+  const name = sandboxName(projectId);
+  return await Sandbox.getOrCreate({
+    name, runtime: 'node24', persistent: true, timeout: 5 * 60 * 1000,
+    onCreate: async (sbx) => { await sbx.runCommand('mkdir', ['-p', '/workspace']); }
+  });
+}
+async function sandboxAction(payload) {
+  const projectId = String(payload.projectId || '').trim();
+  if (!projectId || projectId.length > 120) throw new Error('projectId is required');
+  const op = String(payload.op || 'status');
+  const sbx = await getSandbox(projectId);
+  if (op === 'status') return { ok: true, name: sbx.name || sandboxName(projectId), sandboxId: sbx.sandboxId || sbx.id || '', status: sbx.status || 'ready', persistent: true };
+  if (op === 'sync') {
+    const files = Array.isArray(payload.files) ? payload.files.slice(0, 120) : [];
+    let total = 0;
+    const writes = [];
+    for (const file of files) {
+      const path = sandboxPath(file?.path);
+      const content = String(file?.content ?? '');
+      const size = Buffer.byteLength(content);
+      if (size > SANDBOX_MAX_FILE_BYTES) throw new Error(`Sandbox file too large: ${path}`);
+      total += size; if (total > SANDBOX_MAX_SYNC_BYTES) throw new Error('Sandbox sync batch exceeds safe request limit');
+      writes.push({ path: `/workspace/${path}`, content: Buffer.from(content, 'utf8') });
+    }
+    if (writes.length) await sbx.writeFiles(writes);
+    if (Array.isArray(payload.manifest)) {
+      const current = [...new Set(payload.manifest.slice(0, 500).map(sandboxPath))];
+      let previous = [];
+      try { const old = await sbx.readFileToBuffer({ path: '/workspace/.aiway-sync-manifest.json' }); previous = JSON.parse(old?.toString('utf8') || '[]'); } catch {}
+      const keep = new Set(current);
+      for (const oldPath of Array.isArray(previous) ? previous : []) {
+        let safe; try { safe = sandboxPath(oldPath); } catch { continue; }
+        if (!keep.has(safe)) try { await sbx.runCommand('rm', ['-f', `/workspace/${safe}`]); } catch {}
+      }
+      await sbx.writeFiles([{ path: '/workspace/.aiway-sync-manifest.json', content: Buffer.from(JSON.stringify(current), 'utf8') }]);
+    }
+    return { ok: true, name: sbx.name || sandboxName(projectId), files: writes.length, bytes: total };
+  }
+  if (op === 'write') {
+    const path = sandboxPath(payload.path), content = String(payload.content ?? '');
+    if (Buffer.byteLength(content) > SANDBOX_MAX_FILE_BYTES) throw new Error('Sandbox file exceeds safe size limit');
+    await sbx.writeFiles([{ path: `/workspace/${path}`, content: Buffer.from(content, 'utf8') }]);
+    return { ok: true, path, bytes: Buffer.byteLength(content) };
+  }
+  if (op === 'read') {
+    const path = sandboxPath(payload.path);
+    const buf = await sbx.readFileToBuffer({ path: `/workspace/${path}` });
+    if (!buf) throw new Error('Sandbox file not found');
+    if (buf.length > SANDBOX_MAX_FILE_BYTES) throw new Error('Sandbox file exceeds readable size limit');
+    return { ok: true, path, content: buf.toString('utf8'), bytes: buf.length };
+  }
+  if (op === 'exec') {
+    const command = String(payload.command || '').trim();
+    if (!command || command.length > SANDBOX_COMMAND_LIMIT) throw new Error('Sandbox command is empty or too long');
+    const allowNetwork = payload.allowNetwork === true;
+    try { await sbx.update({ networkPolicy: allowNetwork ? 'allow-all' : 'deny-all' }); } catch {}
+    let result;
+    try { result = await sbx.runCommand('bash', ['-lc', `cd /workspace && ${command}`]); }
+    finally { if (allowNetwork) try { await sbx.update({ networkPolicy: 'deny-all' }); } catch {} }
+    const stdout = (await streamTextValue(result?.stdout)).slice(0, 250_000);
+    const stderr = (await streamTextValue(result?.stderr)).slice(0, 120_000);
+    return { ok: Number(result?.exitCode || 0) === 0, exitCode: Number(result?.exitCode || 0), stdout, stderr, sandbox: sbx.name || sandboxName(projectId), persistent: true };
+  }
+  if (op === 'stop') { const meta = await sbx.stop(); return { ok: true, stopped: true, snapshotId: meta?.snapshotId || meta?.snapshot?.snapshotId || '' }; }
+  if (op === 'delete') {
+    await sbx.delete();
+    return { ok: true, deleted: true };
+  }
+  throw new Error('Unsupported sandbox operation');
+}
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'POST']);
 
 function isPrivateIp(ip) {
@@ -153,10 +255,11 @@ export default async function handler(req, res) {
   if (!rateLimit(req, res, { key: 'agent', limit: 45 })) return;
   const signal = requestAbortSignal(req, res);
   try {
-    const payload = await bodyJson(req, 1_000_000);
+    const payload = await bodyJson(req, 2_000_000);
     const action = String(payload.action || '');
     if (action === 'browser') return json(res, 200, await browserAction(payload, signal));
     if (action === 'mcp') return json(res, 200, await mcpProxy(payload, signal));
+    if (action === 'sandbox') return json(res, 200, await sandboxAction(payload));
     return json(res, 400, { error: 'Unsupported agent action' });
   } catch (error) {
     if (signal.aborted || error?.name === 'AbortError') return !res.writableEnded && json(res, 499, { error: 'Request cancelled' });
