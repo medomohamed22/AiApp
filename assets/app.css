@@ -365,3 +365,169 @@ body[data-theme="midnight"] .reasoning-menu button:hover,body[data-theme="midnig
   .composer-toolbar .chipbtn{padding:5px 6px;font-size:8.5px}
   .composer-toolbar .chipbtn>.ui-icon{width:12px;height:12px;flex-basis:12px}
 }
+
+/* === AiWay composer action rail v4.3 ===
+   Mobile-first: compact, anchored to the composer, touch-safe, no layout jump. */
+.reasoning-menu[hidden]{display:none!important}
+
+.composer-wrap{
+  display:block;
+  position:absolute;
+  inset:auto 0 0 0;
+  padding:0 12px max(12px,env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,transparent 0%,rgba(248,247,251,.86) 30%,var(--bg) 58%);
+  pointer-events:none;
+  z-index:35;
+}
+.composer{
+  position:relative;
+  width:min(100%,var(--max));
+  margin:0 auto;
+  pointer-events:auto;
+  z-index:2;
+}
+.composer-toolbar{
+  position:absolute;
+  inset-inline:0;
+  bottom:calc(100% + 7px);
+  width:min(calc(100% - 24px),var(--max));
+  margin-inline:auto;
+  padding:0;
+  pointer-events:none;
+  z-index:8;
+}
+.composer-toolbar .composer-tools{
+  width:100%;
+  min-height:30px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:5px;
+  padding:0;
+  margin:0;
+  overflow:visible;
+  flex-wrap:nowrap;
+  opacity:1!important;
+  transform:none!important;
+  pointer-events:none;
+}
+.composer-toolbar .chipbtn,
+.composer-toolbar .reasoning-control{
+  pointer-events:auto;
+}
+.composer-toolbar .chipbtn{
+  min-width:0;
+  min-height:30px;
+  height:30px;
+  padding:0 9px;
+  gap:4px;
+  border:1px solid rgba(205,193,224,.82);
+  border-radius:999px;
+  background:rgba(255,255,255,.9);
+  color:#655b72;
+  box-shadow:0 5px 16px rgba(69,43,103,.07);
+  backdrop-filter:blur(16px) saturate(1.12);
+  -webkit-backdrop-filter:blur(16px) saturate(1.12);
+  font-size:9.5px;
+  font-weight:800;
+  line-height:1;
+  letter-spacing:0;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .14s ease,border-color .14s ease,background .14s ease,color .14s ease,box-shadow .14s ease;
+}
+.composer-toolbar .chipbtn:hover{
+  background:#fff;
+  border-color:#cdbfe2;
+  box-shadow:0 7px 20px rgba(69,43,103,.1);
+}
+.composer-toolbar .chipbtn:active{transform:scale(.96)}
+.composer-toolbar .chipbtn.on{
+  background:linear-gradient(135deg,#7248df,#9364f3);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 7px 18px rgba(110,70,217,.22);
+}
+.composer-toolbar .chipbtn>.ui-icon{
+  width:13px;
+  height:13px;
+  flex:0 0 13px;
+}
+.composer-toolbar .composer-status{display:none!important}
+
+.reasoning-control{position:relative;display:inline-flex;z-index:12}
+.reasoning-btn .reasoning-caret{display:none}
+.reasoning-menu{
+  position:absolute;
+  inset-inline-end:0;
+  bottom:calc(100% + 8px);
+  width:104px;
+  padding:5px;
+  border:1px solid rgba(205,193,224,.9);
+  border-radius:14px;
+  background:rgba(255,255,255,.97);
+  box-shadow:0 16px 40px rgba(55,35,90,.16);
+  backdrop-filter:blur(20px) saturate(1.15);
+  -webkit-backdrop-filter:blur(20px) saturate(1.15);
+  z-index:100;
+  transform-origin:bottom right;
+}
+.reasoning-control.open .reasoning-menu{display:block;animation:reasoningMenuIn .14s ease-out both}
+.reasoning-menu button{
+  width:100%;
+  min-height:34px;
+  border:0;
+  border-radius:10px;
+  padding:0 10px;
+  background:transparent;
+  color:var(--ink);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  text-align:right;
+  cursor:pointer;
+  font-size:11px;
+  font-weight:800;
+  -webkit-tap-highlight-color:transparent;
+}
+.reasoning-menu button:hover,
+.reasoning-menu button.active{background:var(--primary-soft);color:#4c2ba8}
+.reasoning-menu button.active::after{content:"✓";font-size:11px;color:#6e46d9;font-weight:900}
+.reasoning-menu button span{font-size:inherit;font-weight:inherit}
+.reasoning-menu button small{display:none!important}
+
+@media(max-width:620px){
+  .messages{padding-bottom:154px}
+  .composer-wrap{padding-inline:10px}
+  .composer-toolbar{
+    width:calc(100% - 20px);
+    bottom:calc(100% + 6px);
+  }
+  .composer-toolbar .composer-tools{
+    justify-content:center;
+    gap:4px;
+  }
+  .composer-toolbar .chipbtn{
+    height:28px;
+    min-height:28px;
+    padding:0 7px;
+    font-size:8.8px;
+    gap:3px;
+  }
+  .composer-toolbar .chipbtn>.ui-icon{
+    width:12px;
+    height:12px;
+    flex-basis:12px;
+  }
+  .reasoning-menu{
+    width:100px;
+    bottom:calc(100% + 7px);
+  }
+}
+
+@media(max-width:380px){
+  .composer-toolbar .composer-tools{gap:3px}
+  .composer-toolbar .chipbtn{padding:0 6px;font-size:8.2px}
+  .composer-toolbar .chipbtn>.ui-icon{width:11px;height:11px;flex-basis:11px}
+}
