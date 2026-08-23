@@ -212,3 +212,156 @@ body[data-theme="midnight"] .reasoning-menu{background:rgba(28,25,36,.98);border
 body[data-theme="midnight"] .reasoning-menu button{color:#f4effc}
 body[data-theme="midnight"] .reasoning-menu button:hover,body[data-theme="midnight"] .reasoning-menu button.active{background:#282133;color:#cdbaff}
 @media(max-width:520px){.composer-wrap{gap:7px}.composer-toolbar{padding-inline:4px}.composer-toolbar .composer-tools{gap:6px;flex-wrap:nowrap;overflow-x:auto;overflow-y:visible;padding-block:2px}.composer-toolbar .chipbtn{padding:7px 9px}.reasoning-menu{position:fixed;left:12px;right:12px;bottom:132px;width:auto}.composer-toolbar .composer-status{display:none}}
+
+/* === Compact composer toolbar — fixed directly above the chat box === */
+.composer-wrap{
+  gap:6px;
+}
+.composer-toolbar{
+  width:min(100%,var(--max));
+  padding-inline:10px;
+  pointer-events:auto;
+}
+.composer-toolbar .composer-tools{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:5px;
+  padding:0;
+  overflow:visible;
+  flex-wrap:nowrap;
+  min-height:34px;
+}
+.composer-toolbar .chipbtn{
+  min-height:32px;
+  padding:6px 9px;
+  gap:5px;
+  font-size:9.5px;
+  line-height:1;
+  box-shadow:none;
+}
+.composer-toolbar .chipbtn>.ui-icon{
+  width:14px;
+  height:14px;
+  flex-basis:14px;
+}
+.composer-toolbar .composer-status{
+  display:none;
+}
+.reasoning-control{
+  position:relative;
+  display:inline-flex;
+  z-index:80;
+}
+.reasoning-btn .reasoning-caret{
+  font-size:9px;
+  line-height:1;
+  margin-inline-start:0;
+}
+.reasoning-menu{
+  position:absolute;
+  inset-inline-end:0;
+  bottom:calc(100% + 7px);
+  width:116px;
+  padding:5px;
+  border:1px solid rgba(205,193,224,.96);
+  border-radius:14px;
+  background:rgba(255,255,255,.98);
+  box-shadow:0 14px 36px rgba(69,43,103,.16);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  display:block;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transform:translateY(5px) scale(.98);
+  transform-origin:bottom right;
+  transition:opacity .14s ease,transform .14s ease,visibility 0s linear .14s;
+  z-index:100;
+}
+.reasoning-control.open .reasoning-menu{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+  transform:none;
+  transition:opacity .14s ease,transform .14s ease;
+  animation:none;
+}
+.reasoning-menu button{
+  width:100%;
+  min-height:34px;
+  border:0;
+  background:transparent;
+  color:var(--ink);
+  border-radius:10px;
+  padding:7px 9px;
+  text-align:right;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  font:inherit;
+  font-size:10.5px;
+  font-weight:800;
+}
+.reasoning-menu button span{
+  font-size:inherit;
+  font-weight:inherit;
+}
+.reasoning-menu button small{
+  display:none!important;
+}
+.reasoning-menu button.active::after{
+  content:"✓";
+  color:#6e46d9;
+  font-weight:900;
+  font-size:11px;
+}
+.reasoning-menu button:hover,
+.reasoning-menu button.active{
+  background:var(--primary-soft);
+  color:#4c2ba8;
+}
+
+@media(max-width:620px){
+  .messages{padding-bottom:150px}
+  .composer-wrap{
+    padding-inline:10px;
+    gap:5px;
+  }
+  .composer-toolbar{
+    padding-inline:3px;
+  }
+  .composer-toolbar .composer-tools{
+    justify-content:center;
+    gap:4px;
+    overflow:visible;
+    padding:0;
+  }
+  .composer-toolbar .chipbtn{
+    min-height:30px;
+    padding:5px 7px;
+    gap:4px;
+    font-size:9px;
+  }
+  .composer-toolbar .chipbtn>.ui-icon{
+    width:13px;
+    height:13px;
+    flex-basis:13px;
+  }
+  .reasoning-menu{
+    position:absolute;
+    left:auto;
+    right:auto;
+    inset-inline-end:0;
+    bottom:calc(100% + 7px);
+    width:108px;
+  }
+}
+
+@media(max-width:390px){
+  .composer-toolbar .composer-tools{gap:3px}
+  .composer-toolbar .chipbtn{padding:5px 6px;font-size:8.5px}
+  .composer-toolbar .chipbtn>.ui-icon{width:12px;height:12px;flex-basis:12px}
+}
