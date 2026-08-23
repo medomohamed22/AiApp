@@ -51,7 +51,6 @@
         <div class="composer-tools">
           <button class="chipbtn" id="webToggle" aria-pressed="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.5 12h17M12 3c2.2 2.4 3.4 5.4 3.4 9S14.2 18.6 12 21M12 3C9.8 5.4 8.6 8.4 8.6 12s1.2 6.6 3.4 9"/></svg><span>بحث</span></button>
           <button class="chipbtn" id="toolsToggle" aria-pressed="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 6.2a4 4 0 0 0-5.1 5.1L4.2 16.2a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4 4 0 0 0 5.1-5.1l-2.2 2.2-2.5-.5-.5-2.5 2.9-1.5Z"/><path d="m14.8 14.8 4.9 4.9"/><path d="m17.2 16.2 1.4-1.4 2.2 2.2-1.4 1.4"/></svg><span>أدوات</span></button>
-          <button class="chipbtn" id="memoryToggle" aria-pressed="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 4.7A3.2 3.2 0 0 0 4.8 8a3.5 3.5 0 0 0 .4 6.7 3.3 3.3 0 0 0 4 4.6c1.1-.2 2-.8 2.8-1.7V6.4a4 4 0 0 0-2.8-1.7Z"/><path d="M14.8 4.7A3.2 3.2 0 0 1 19.2 8a3.5 3.5 0 0 1-.4 6.7 3.3 3.3 0 0 1-4 4.6c-1.1-.2-2-.8-2.8-1.7V6.4a4 4 0 0 1 2.8-1.7Z"/><path d="M8 9.5c1.5 0 2.6.7 4 2M16 9.5c-1.5 0-2.6.7-4 2M8.2 15c1.2-.1 2.2.3 3.8 1.5M15.8 15c-1.2-.1-2.2.3-3.8 1.5"/></svg><span>ذاكرة</span></button>
           <button class="chipbtn" id="skillsToggle" aria-pressed="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.25 3.75L17 8l-3.75 1.25L12 13l-1.25-3.75L7 8l3.75-1.25L12 3Z"/><path d="m18.5 13.5.75 2.25 2.25.75-2.25.75-.75 2.25-.75-2.25-2.25-.75 2.25-.75.75-2.25Z"/><path d="m6 14 .85 2.55L9.4 17.4l-2.55.85L6 20.8l-.85-2.55-2.55-.85 2.55-.85L6 14Z"/></svg><span>Skills</span></button>
           <div class="reasoning-control">
             <button class="chipbtn reasoning-btn" id="reasoningToggle" aria-haspopup="menu" aria-expanded="false" aria-pressed="false">
@@ -124,8 +123,18 @@
   <div class="card"><h3>Agent Intelligence</h3>
     <div class="notice" style="margin:0 0 9px">طبقة orchestration متوافقة مع Vercel: تخطيط Todo، Subagents معزولة، Verifier/Evals، Browser Gateway آمن، Virtual Terminal على ملفات المشروع، وتنفيذ JavaScript داخل Web Worker.</div>
     <div class="grid2"><div><label class="label">Orchestration</label><select class="field" id="orchestration"><option value="smart">Smart — تخطيط/تحقق عند المهام المعقدة</option><option value="off">Off — loop الأساسي فقط</option></select></div><div><label class="label">Verifier</label><select class="field" id="verifierEnabled"><option value="true">ON — Evals قبل إنهاء المهام المعقدة</option><option value="false">OFF</option></select></div></div>
-    <div style="height:8px"></div><label class="label">Subagents</label><select class="field" id="subagentsEnabled"><option value="true">ON — حتى 3 متخصصين في الجولة</option><option value="false">OFF</option></select>
+    <div style="height:8px"></div><label class="label">Subagents</label><select class="field" id="subagentsEnabled"><option value="true">ON — حتى 4 متخصصين بالتوازي</option><option value="false">OFF</option></select>
     <div class="hint">الـSubagents تستخدم نفس Provider/Model وتعود بنتائج مختصرة للـAgent الرئيسي. الـVirtual Terminal لا يشغّل أوامر نظام على Vercel، لذلك يبقى آمنًا ومتوافقًا مع Serverless.</div>
+  </div>
+  <div class="card intelligence-card"><div class="row"><div class="grow"><h3 style="margin:0">Agent Intelligence 2026</h3><div class="hint">طبقة ذكاء موحدة للـSkills وMCP والذاكرة وWorkspace واختيار الأدوات. تعمل محليًا ولا تضيف Serverless Functions جديدة.</div></div><span class="badge ok">10/10 Active</span></div>
+    <div class="intelligence-grid" style="margin-top:10px">
+      <label class="intel-toggle"><span><b>Auto Skill Router</b><small>ترتيب أفضل Skills حسب المهمة</small></span><select class="field" id="skillRouter"><option value="true">ON</option><option value="false">OFF</option></select></label>
+      <label class="intel-toggle"><span><b>Skill Chains</b><small>سلسلة Skills مرتبة للمهام المركبة</small></span><select class="field" id="skillChains"><option value="true">ON</option><option value="false">OFF</option></select></label>
+      <label class="intel-toggle"><span><b>Smart MCP Router</b><small>اختيار الأدوات حسب الصلة والموثوقية</small></span><select class="field" id="mcpRouter"><option value="true">ON</option><option value="false">OFF</option></select></label>
+      <label class="intel-toggle"><span><b>Memory Consolidation</b><small>دمج الذكريات المتكررة تلقائيًا</small></span><select class="field" id="memoryConsolidation"><option value="true">ON</option><option value="false">OFF</option></select></label>
+      <label class="intel-toggle"><span><b>Workspace Awareness</b><small>خريطة مشروع مختصرة ومحدثة</small></span><select class="field" id="workspaceAwareness"><option value="true">ON</option><option value="false">OFF</option></select></label>
+      <label class="intel-toggle"><span><b>Tool Reliability</b><small>Score نجاح/سرعة لكل أداة</small></span><select class="field" id="toolReliability"><option value="true">ON</option><option value="false">OFF</option></select></label>
+    </div>
   </div>
   <div class="card"><h3>Search Auto Router</h3>
     <div class="grid2"><div><label class="label">نوع البحث</label><select class="field" id="searchRouting"><option value="auto">Auto — يقرر حسب الطلب</option><option value="web">Web فقط</option><option value="visual">Web + Images دائمًا</option></select></div><div><label class="label">أقصى صور للرؤية</label><input class="field" id="visualImageLimit" type="number" min="1" max="6" step="1" /></div></div>
@@ -170,7 +179,7 @@
 <div class="backdrop" id="memorySheet"><div class="sheet">
   <div class="sheet-head"><div class="grow"><h2>الذاكرة المحلية</h2><p class="sub">ذكريات مختصرة يحفظها الـAgent محليًا ويمكنه البحث فيها.</p></div><button class="btn icon close-sheet">✕</button></div>
   <div class="stats"><div class="stat"><b id="memCount">0</b><small>Memory items</small></div><div class="stat"><b id="chatCount">0</b><small>Chats</small></div><div class="stat"><b id="dbSize">—</b><small>Storage estimate</small></div></div>
-  <div style="height:10px"></div><div class="toolbar"><input class="field grow" id="memorySearch" placeholder="ابحث في الذاكرة..." /><select class="field" id="memoryTypeFilter" style="max-width:140px"><option value="">كل الأنواع</option><option value="preference">Preference</option><option value="fact">Fact</option><option value="decision">Decision</option><option value="project">Project</option><option value="temporary">Temporary</option></select><button class="btn" id="addMemoryBtn">＋ إضافة</button><button class="btn" id="clearMemoryBtn">مسح الكل</button></div><div style="height:10px"></div><div id="memoryList"></div>
+  <div style="height:10px"></div><div class="toolbar"><input class="field grow" id="memorySearch" placeholder="ابحث في الذاكرة..." /><select class="field" id="memoryTypeFilter" style="max-width:140px"><option value="">كل الأنواع</option><option value="preference">Preference</option><option value="fact">Fact</option><option value="decision">Decision</option><option value="project">Project</option><option value="temporary">Temporary</option></select><button class="btn" id="addMemoryBtn">＋ إضافة</button><button class="btn" id="consolidateMemoryBtn">دمج المتكرر</button><button class="btn" id="clearMemoryBtn">مسح الكل</button></div><div style="height:10px"></div><div id="memoryList"></div>
 </div></div>
 
 
@@ -213,7 +222,9 @@
 </div></div>
 
 <div class="backdrop" id="timelineSheet"><div class="sheet">
- <div class="sheet-head"><div class="grow"><h2>Agent Activity</h2><p class="sub">سجل الأدوات والـrouting والـcontext بدون عرض التفكير الداخلي.</p></div><button class="btn icon close-sheet">✕</button></div><div class="stats"><div class="stat"><b id="timelineCalls">0</b><small>Tool events</small></div><div class="stat"><b id="timelineDone">0</b><small>Completed</small></div><div class="stat"><b id="timelineErrors">0</b><small>Errors</small></div></div><div style="height:12px"></div><div class="timeline" id="timelineList"></div><div style="height:12px"></div><div class="card"><div class="row"><div class="grow"><h3 style="margin:0">Agent Evals</h3><div class="hint">آخر تقييمات correctness/security/verification المحفوظة محليًا.</div></div><button class="btn sm" id="refreshEvalsBtn">تحديث</button></div><div id="evalsList" style="margin-top:9px"></div></div>
+ <div class="sheet-head"><div class="grow"><h2>Agent Inspector</h2><p class="sub">شفافية تشغيلية بدون عرض chain-of-thought: النموذج، مستوى التفكير، Skill routing، طبقات الذاكرة، MCP وموثوقية الأدوات.</p></div><button class="btn icon close-sheet">✕</button></div>
+ <div class="card inspector-card"><div class="row"><div class="grow"><h3 style="margin:0">Run Inspector</h3><div class="hint">آخر لقطة تشغيل محفوظة للمحادثة الحالية.</div></div><span class="badge ok">Live</span></div><div id="agentInspector" style="margin-top:10px"></div></div>
+ <div class="stats"><div class="stat"><b id="timelineCalls">0</b><small>Tool events</small></div><div class="stat"><b id="timelineDone">0</b><small>Completed</small></div><div class="stat"><b id="timelineErrors">0</b><small>Errors</small></div></div><div style="height:12px"></div><div class="timeline" id="timelineList"></div><div style="height:12px"></div><div class="card"><div class="row"><div class="grow"><h3 style="margin:0">Agent Evals</h3><div class="hint">آخر تقييمات correctness/security/verification المحفوظة محليًا.</div></div><button class="btn sm" id="refreshEvalsBtn">تحديث</button></div><div id="evalsList" style="margin-top:9px"></div></div>
 </div></div>
 
 
@@ -232,6 +243,6 @@
 <div class="askbox" id="askBox"><h3>السماح بتشغيل الأداة؟</h3><p id="askText"></p><pre id="askArgs"></pre><div class="row"><button class="btn primary grow" id="askAllow">سماح هذه المرة</button><button class="btn" id="askDeny">رفض</button></div></div>
 <div class="secretbox" id="secretBox" role="dialog" aria-modal="true" aria-labelledby="secretTitle"><h3 id="secretTitle">إضافة Secret للمشروع</h3><p id="secretHelp">أدخل قيمة المفتاح. سيتم إرسالها مباشرة إلى Vercel ولن تدخل إلى المحادثة.</p><div><span class="secret-key" id="secretKeyLabel">API_KEY</span></div><div style="height:9px"></div><input class="field" id="secretValueInput" type="password" autocomplete="new-password" placeholder="الصق API key هنا" /><div class="secret-security"><span>🔒</span><span>القيمة لا تُحفظ في IndexedDB أو Artifacts أو رسائل المحادثة، ولا يتم إرجاعها من الأداة للنموذج.</span></div><div class="row wrap"><a class="btn sm" id="secretProviderLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">فتح لوحة مزود الـAPI ↗</a><span class="grow"></span><button class="btn" id="secretCancelBtn">إلغاء</button><button class="btn primary" id="secretSaveBtn">حفظ في Vercel</button></div></div>
 
-<script src="/assets/app.js?v=4.4-sidebar" defer></script>
+<script src="/assets/app.js?v=5.0-intelligence" defer></script>
 </body>
 </html>
