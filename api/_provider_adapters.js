@@ -38,11 +38,26 @@ function reasoningBudget(level,maxTokens=8192){const desired=({low:1024,medium:4
 function responseReasoningEffort(model,level){if(level!=='off')return level;const id=String(model||'').toLowerCase();return /^gpt-5(?:$|-(?:mini|nano)$)/.test(id)?'minimal':'none'}
 function geminiThinkingConfig(model,level){const id=String(model||'').toLowerCase();if(id.startsWith('gemini-2.5')){if(level==='off')return id.includes('pro')?null:{thinkingBudget:0};return {thinkingBudget:({low:1024,medium:8192,high:24576})[level]}}if(/^gemini-(?:[3-9]|1\d)/.test(id)){return {thinkingLevel:level==='off'?(id.includes('pro')?'LOW':'MINIMAL'):level.toUpperCase()}}return null}
 
+function isHy3Model(model=''){
+  const id=String(model||'').toLowerCase();
+  return id==='hy3'||id==='hy3-free'||id.endsWith('/hy3')||id.endsWith('/hy3-free');
+}
+function hy3ReasoningEffort(level){
+  return level==='off'?'no_think':level;
+}
+
 export function sanitizeOpenAIChatPayload(payload={}){
   const level=reasoningLevel(payload);
   const out={...payload};
   delete out.aiway_reasoning_level;
-  if(level!=='off') out.reasoning_effort=level;
+  if(isHy3Model(payload.model)){
+    // Hy3 uses its chat-template reasoning switch. Sending both the top-level
+    // OpenAI-compatible field and chat_template_kwargs keeps this working
+    // across Zen/provider adapters that consume either representation.
+    const effort=hy3ReasoningEffort(level);
+    out.reasoning_effort=effort;
+    out.chat_template_kwargs={...(payload.chat_template_kwargs||{}),reasoning_effort:effort};
+  } else if(level!=='off') out.reasoning_effort=level;
   out.messages=(Array.isArray(payload.messages)?payload.messages:[]).map(message=>{
     if(!message || typeof message!=='object') return message;
     const m={...message};
