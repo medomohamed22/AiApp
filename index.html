@@ -5,24 +5,29 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#f7f5ff" />
 <title>AiWay — AI Agent</title>
-<link rel="stylesheet" href="/assets/app.css?v=4.3-ui" />
+<link rel="stylesheet" href="/assets/app.css?v=4.4-sidebar" />
 </head>
 <body>
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand"><div class="brandmark">A</div><div class="brandtext"><b>AiWay</b><small>AI Assistant • Coding • Smart Tools</small></div><button class="btn icon mobile-only" id="closeSidebar" aria-label="إغلاق القائمة"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <button class="btn primary full" id="newChatBtn">＋ محادثة جديدة</button>
-    <div class="navgroup">
-      <button class="navitem active" data-open="chat"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 18.5 4 21l4-1.5A8.5 8.5 0 1 0 5.5 18.5Z"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"/></svg><span>المحادثة</span></button>
-      <button class="navitem" data-open="projects"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="7" height="7" rx="2"/><rect x="13.5" y="4" width="7" height="7" rx="2"/><rect x="3.5" y="14" width="7" height="6" rx="2"/><rect x="13.5" y="14" width="7" height="6" rx="2"/></svg><span>Projects</span> <span class="count" id="projectCount">1</span></button>
-      <button class="navitem" data-open="artifacts"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"/><path d="M14 3.5V8h4M10 12l-2 2 2 2M14 12l2 2-2 2"/></svg><span>Artifacts</span> <span class="count" id="artifactCount">0</span></button>
-      <button class="navitem" data-open="skills"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.25 3.75L17 8l-3.75 1.25L12 13l-1.25-3.75L7 8l3.75-1.25L12 3Z"/><path d="m18.5 13.5.75 2.25 2.25.75-2.25.75-.75 2.25-.75-2.25-2.25-.75 2.25-.75.75-2.25Z"/><path d="m6 14 .85 2.55L9.4 17.4l-2.55.85L6 20.8l-.85-2.55-2.55-.85 2.55-.85L6 14Z"/></svg><span>Skills</span> <span class="count" id="skillCount">0</span></button>
-      <button class="navitem" data-open="tools"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 6.2a4 4 0 0 0-5.1 5.1L4.2 16.2a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4 4 0 0 0 5.1-5.1l-2.2 2.2-2.5-.5-.5-2.5 2.9-1.5Z"/><path d="m14.8 14.8 4.9 4.9"/><path d="m17.2 16.2 1.4-1.4 2.2 2.2-1.4 1.4"/></svg><span>الأدوات و MCP</span> <span class="count" id="toolCount">0</span></button>
-      <button class="navitem" data-open="memory"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 4.7A3.2 3.2 0 0 0 4.8 8a3.5 3.5 0 0 0 .4 6.7 3.3 3.3 0 0 0 4 4.6c1.1-.2 2-.8 2.8-1.7V6.4a4 4 0 0 0-2.8-1.7Z"/><path d="M14.8 4.7A3.2 3.2 0 0 1 19.2 8a3.5 3.5 0 0 1-.4 6.7 3.3 3.3 0 0 1-4 4.6c-1.1-.2-2-.8-2.8-1.7V6.4a4 4 0 0 1 2.8-1.7Z"/><path d="M8 9.5c1.5 0 2.6.7 4 2M16 9.5c-1.5 0-2.6.7-4 2M8.2 15c1.2-.1 2.2.3 3.8 1.5M15.8 15c-1.2-.1-2.2.3-3.8 1.5"/></svg><span>الذاكرة</span></button>
-      <button class="navitem" data-open="timeline"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.2-5 4.1 10 2.3-5H21"/></svg><span>Activity</span></button>
+    <div class="sidebar-scroll" id="sidebarScroll">
+      <div class="navgroup">
+        <button class="navitem active" data-open="chat"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 18.5 4 21l4-1.5A8.5 8.5 0 1 0 5.5 18.5Z"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"/></svg><span>المحادثة</span></button>
+        <button class="navitem" data-open="projects"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="7" height="7" rx="2"/><rect x="13.5" y="4" width="7" height="7" rx="2"/><rect x="3.5" y="14" width="7" height="6" rx="2"/><rect x="13.5" y="14" width="7" height="6" rx="2"/></svg><span>Projects</span> <span class="count" id="projectCount">1</span></button>
+        <button class="navitem" data-open="artifacts"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"/><path d="M14 3.5V8h4M10 12l-2 2 2 2M14 12l2 2-2 2"/></svg><span>Artifacts</span> <span class="count" id="artifactCount">0</span></button>
+        <button class="navitem more-toggle" id="moreNavToggle" type="button" aria-expanded="false" aria-controls="moreNavItems"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg><span>المزيد</span><svg class="more-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></button>
+        <div class="more-nav" id="moreNavItems" hidden>
+          <button class="navitem subnav" data-open="skills"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.25 3.75L17 8l-3.75 1.25L12 13l-1.25-3.75L7 8l3.75-1.25L12 3Z"/><path d="m18.5 13.5.75 2.25 2.25.75-2.25.75-.75 2.25-.75-2.25-2.25-.75 2.25-.75.75-2.25Z"/><path d="m6 14 .85 2.55L9.4 17.4l-2.55.85L6 20.8l-.85-2.55-2.55-.85 2.55-.85L6 14Z"/></svg><span>Skills</span> <span class="count" id="skillCount">0</span></button>
+          <button class="navitem subnav" data-open="tools"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 6.2a4 4 0 0 0-5.1 5.1L4.2 16.2a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4 4 0 0 0 5.1-5.1l-2.2 2.2-2.5-.5-.5-2.5 2.9-1.5Z"/><path d="m14.8 14.8 4.9 4.9"/><path d="m17.2 16.2 1.4-1.4 2.2 2.2-1.4 1.4"/></svg><span>الأدوات و MCP</span> <span class="count" id="toolCount">0</span></button>
+          <button class="navitem subnav" data-open="memory"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 4.7A3.2 3.2 0 0 0 4.8 8a3.5 3.5 0 0 0 .4 6.7 3.3 3.3 0 0 0 4 4.6c1.1-.2 2-.8 2.8-1.7V6.4a4 4 0 0 0-2.8-1.7Z"/><path d="M14.8 4.7A3.2 3.2 0 0 1 19.2 8a3.5 3.5 0 0 1-.4 6.7 3.3 3.3 0 0 1-4 4.6c-1.1-.2-2-.8-2.8-1.7V6.4a4 4 0 0 1 2.8-1.7Z"/><path d="M8 9.5c1.5 0 2.6.7 4 2M16 9.5c-1.5 0-2.6.7-4 2M8.2 15c1.2-.1 2.2.3 3.8 1.5M15.8 15c-1.2-.1-2.2.3-3.8 1.5"/></svg><span>الذاكرة</span></button>
+          <button class="navitem subnav" data-open="timeline"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.2-5 4.1 10 2.3-5H21"/></svg><span>Activity</span></button>
+        </div>
+      </div>
+      <div class="section-label">المحادثات</div>
+      <div class="chat-list" id="chatList"></div>
     </div>
-    <div class="section-label">المحادثات</div>
-    <div class="chat-list" id="chatList"></div>
     <div class="sidebar-foot">
       <button class="btn full" id="settingsBtn"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.55 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.1A1.7 1.7 0 0 0 4.6 8.55a1.7 1.7 0 0 0-.34-1.87l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.45 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.34.3.55.64.6 1 .04.26.04.54.04.8H21v4h-.1A1.7 1.7 0 0 0 19.4 15Z"/></svg><span>الإعدادات و API</span></button>
       <button class="btn full ghost" id="exportBtn"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19h14"/></svg><span>تصدير البيانات</span></button>
@@ -227,6 +232,6 @@
 <div class="askbox" id="askBox"><h3>السماح بتشغيل الأداة؟</h3><p id="askText"></p><pre id="askArgs"></pre><div class="row"><button class="btn primary grow" id="askAllow">سماح هذه المرة</button><button class="btn" id="askDeny">رفض</button></div></div>
 <div class="secretbox" id="secretBox" role="dialog" aria-modal="true" aria-labelledby="secretTitle"><h3 id="secretTitle">إضافة Secret للمشروع</h3><p id="secretHelp">أدخل قيمة المفتاح. سيتم إرسالها مباشرة إلى Vercel ولن تدخل إلى المحادثة.</p><div><span class="secret-key" id="secretKeyLabel">API_KEY</span></div><div style="height:9px"></div><input class="field" id="secretValueInput" type="password" autocomplete="new-password" placeholder="الصق API key هنا" /><div class="secret-security"><span>🔒</span><span>القيمة لا تُحفظ في IndexedDB أو Artifacts أو رسائل المحادثة، ولا يتم إرجاعها من الأداة للنموذج.</span></div><div class="row wrap"><a class="btn sm" id="secretProviderLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">فتح لوحة مزود الـAPI ↗</a><span class="grow"></span><button class="btn" id="secretCancelBtn">إلغاء</button><button class="btn primary" id="secretSaveBtn">حفظ في Vercel</button></div></div>
 
-<script src="/assets/app.js?v=4.3-ui" defer></script>
+<script src="/assets/app.js?v=4.4-sidebar" defer></script>
 </body>
 </html>
