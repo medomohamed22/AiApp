@@ -684,6 +684,13 @@ async function exportData(){const data={version:4,exportedAt:new Date().toISOStr
 $("#menuBtn").onclick=()=>$("#sidebar").classList.add("open");
 $("#closeSidebar").onclick=()=>$("#sidebar").classList.remove("open");
 $$('[data-open]').forEach(b=>b.onclick=()=>{const x=b.dataset.open;if(x==="skills")openSheet("#skillsSheet");if(x==="tools")openSheet("#toolsSheet");if(x==="memory")openSheet("#memorySheet");if(x==="projects")openSheet("#projectsSheet");if(x==="artifacts"){renderArtifacts();openSheet("#artifactsSheet")}if(x==="timeline"){renderTimeline();openSheet("#timelineSheet")};$("#sidebar").classList.remove("open")});
+const moreNavToggle=$("#moreNavToggle"),moreNavItems=$("#moreNavItems");
+if(moreNavToggle&&moreNavItems){
+ const setMoreNav=open=>{moreNavToggle.setAttribute("aria-expanded",String(open));moreNavItems.hidden=!open};
+ setMoreNav(false);
+ moreNavToggle.onclick=()=>setMoreNav(moreNavToggle.getAttribute("aria-expanded")!=="true");
+ moreNavItems.addEventListener("click",e=>{if(e.target.closest("[data-open]"))setMoreNav(false)});
+}
 $("#quickTools").onclick=()=>openCommandPalette();
 $("#settingsBtn").onclick=()=>openSheet("#settingsSheet");$("#projectPill").onclick=()=>openSheet("#projectsSheet");
 $$('.close-sheet').forEach(b=>b.onclick=closeSheets);
