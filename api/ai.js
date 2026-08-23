@@ -4,6 +4,42 @@ import { proxyOpenCode, proxyHermesRun } from './_provider_adapters.js';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+
+function normalizeReasoningLevel(value) {
+  const level = String(value || 'off').toLowerCase();
+  return ['off', 'low', 'medium', 'high'].includes(level) ? level : 'off';
+}
+
+function applyOpenRouterReasoning(payload = {}) {
+  const next = structuredClone(payload);
+  const level = normalizeReasoningLevel(next.aiway_reasoning_level);
+  delete next.aiway_reasoning_level;
+  next.reasoning = level === 'off'
+    ? { enabled: false, exclude: true }
+    : { enabled: true, effort: level, exclude: true };
+  return next;
+}
+
+function applyGeminiReasoning(payload = {}, model = '') {
+  const next = structuredClone(payload);
+  const level = normalizeReasoningLevel(next.aiway_reasoning_level);
+  delete next.aiway_reasoning_level;
+  const id = String(model || '').toLowerCase();
+  next.generationConfig = { ...(next.generationConfig || {}) };
+  if (id.startsWith('gemini-2.5')) {
+    if (level === 'off') {
+      if (!id.includes('pro')) next.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    } else {
+      const budgets = { low: 1024, medium: 8192, high: 24576 };
+      next.generationConfig.thinkingConfig = { thinkingBudget: budgets[level] };
+    }
+  } else if (/^gemini-(?:[3-9]|1\d)/.test(id)) {
+    const thinkingLevel = level === 'off' ? (id.includes('pro') ? 'LOW' : 'MINIMAL') : level.toUpperCase();
+    next.generationConfig.thinkingConfig = { thinkingLevel };
+  }
+  return next;
+}
+
 function cleanHermesBase(raw) {
   const parsed = new URL(String(raw || '').trim());
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('HERMES_BASE_URL must use http or https');
@@ -31,7 +67,7 @@ export default async function handler(req, res) {
           'HTTP-Referer': process.env.APP_URL || 'https://aiway.vercel.app',
           'X-Title': 'AiWay',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(applyOpenRouterReasoning(payload)),
         signal,
       });
     } else if (provider === 'opencode') {
@@ -57,6 +93,9 @@ export default async function handler(req, res) {
       const base = cleanHermesBase(env('HERMES_BASE_URL'));
       const chatBase = base.endsWith('/v1') ? base : `${base}/v1`;
       const nextPayload = structuredClone(payload);
+      const reasoningLevel = normalizeReasoningLevel(nextPayload.aiway_reasoning_level);
+      delete nextPayload.aiway_reasoning_level;
+      nextPayload.reasoning_effort = reasoningLevel === 'off' ? 'none' : reasoningLevel;
       const encoded = String(nextPayload.model || '');
       if (encoded.includes('::')) {
         const [hermesProvider, ...rest] = encoded.split('::');
@@ -81,7 +120,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'x-goog-api-key': env('GEMINI_API_KEY'),
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(applyGeminiReasoning(payload, model)),
         signal,
       });
     } else {

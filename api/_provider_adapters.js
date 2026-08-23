@@ -33,8 +33,16 @@ function stableJsonArguments(value){
   }
 }
 
+function reasoningLevel(payload={}){const v=String(payload.aiway_reasoning_level||'off').toLowerCase();return ['off','low','medium','high'].includes(v)?v:'off'}
+function reasoningBudget(level,maxTokens=8192){const desired=({low:1024,medium:4096,high:8192})[level]||0,cap=Math.max(0,Number(maxTokens||8192)-1024);return Math.min(desired,cap)}
+function responseReasoningEffort(model,level){if(level!=='off')return level;const id=String(model||'').toLowerCase();return /^gpt-5(?:$|-(?:mini|nano)$)/.test(id)?'minimal':'none'}
+function geminiThinkingConfig(model,level){const id=String(model||'').toLowerCase();if(id.startsWith('gemini-2.5')){if(level==='off')return id.includes('pro')?null:{thinkingBudget:0};return {thinkingBudget:({low:1024,medium:8192,high:24576})[level]}}if(/^gemini-(?:[3-9]|1\d)/.test(id)){return {thinkingLevel:level==='off'?(id.includes('pro')?'LOW':'MINIMAL'):level.toUpperCase()}}return null}
+
 export function sanitizeOpenAIChatPayload(payload={}){
+  const level=reasoningLevel(payload);
   const out={...payload};
+  delete out.aiway_reasoning_level;
+  if(level!=='off') out.reasoning_effort=level;
   out.messages=(Array.isArray(payload.messages)?payload.messages:[]).map(message=>{
     if(!message || typeof message!=='object') return message;
     const m={...message};
@@ -71,7 +79,7 @@ function toResponsesPayload(p){
     }
     input.push({role:m.role==='assistant'?'assistant':'user',content:textOf(m.content)});
   }
-  return {model:p.model,instructions:system||undefined,input,temperature:p.temperature,max_output_tokens:p.max_tokens,stream:true,tools:toolDefs(p.tools).map(t=>({type:'function',name:t.name,description:t.description,parameters:t.parameters||{type:'object',properties:{}}})),tool_choice:p.tools?.length?'auto':undefined};
+  const level=reasoningLevel(p),effort=responseReasoningEffort(p.model,level);return {model:p.model,instructions:system||undefined,input,temperature:level==='off'?p.temperature:undefined,max_output_tokens:p.max_tokens,stream:true,reasoning:{effort},tools:toolDefs(p.tools).map(t=>({type:'function',name:t.name,description:t.description,parameters:t.parameters||{type:'object',properties:{}}})),tool_choice:p.tools?.length?'auto':undefined};
 }
 
 function toAnthropicPayload(p){
@@ -91,7 +99,7 @@ function toAnthropicPayload(p){
     }
     out.push({role:m.role==='assistant'?'assistant':'user',content:textOf(m.content)});
   }
-  return {model:p.model,system:system||undefined,messages:out,max_tokens:p.max_tokens||8192,temperature:p.temperature,stream:true,tools:toolDefs(p.tools).map(t=>({name:t.name,description:t.description,input_schema:t.parameters||{type:'object',properties:{}}}))};
+  const level=reasoningLevel(p),budget=reasoningBudget(level,p.max_tokens||8192),thinking=level==='off'||budget<1024?undefined:{type:'enabled',budget_tokens:budget};return {model:p.model,system:system||undefined,messages:out,max_tokens:p.max_tokens||8192,temperature:thinking?undefined:p.temperature,thinking,stream:true,tools:toolDefs(p.tools).map(t=>({name:t.name,description:t.description,input_schema:t.parameters||{type:'object',properties:{}}}))};
 }
 function safeParse(x){try{return typeof x==='string'?JSON.parse(x||'{}'):(x||{})}catch{return{}}}
 
@@ -110,7 +118,7 @@ function toGeminiPayload(p){
     for(const tc of m.tool_calls||[]){if(tc.id&&tc.function?.name)callNames.set(tc.id,tc.function.name);parts.push({functionCall:{name:tc.function?.name,args:safeParse(tc.function?.arguments),id:tc.id}})}
     contents.push({role:m.role==='assistant'?'model':'user',parts:parts.length?parts:[{text:''}]});
   }
-  return {systemInstruction:system?{parts:[{text:system}]}:undefined,contents,generationConfig:{temperature:p.temperature,maxOutputTokens:p.max_tokens},tools:p.tools?.length?[{functionDeclarations:toolDefs(p.tools).map(t=>({name:t.name,description:t.description,parameters:t.parameters||{type:'object',properties:{}}}))}]:undefined};
+  const thinkingConfig=geminiThinkingConfig(p.model,reasoningLevel(p));return {systemInstruction:system?{parts:[{text:system}]}:undefined,contents,generationConfig:{temperature:p.temperature,maxOutputTokens:p.max_tokens,...(thinkingConfig?{thinkingConfig}: {})},tools:p.tools?.length?[{functionDeclarations:toolDefs(p.tools).map(t=>({name:t.name,description:t.description,parameters:t.parameters||{type:'object',properties:{}}}))}]:undefined};
 }
 
 async function readSSE(upstream,onEvent){
@@ -180,7 +188,7 @@ export async function proxyHermesRun({payload,sessionId,signal},res){
   if(encoded.includes('::')){[provider,...model]=encoded.split('::');model=model.join('::')}
   const msgs=payload.messages||[],instructions=msgs.filter(m=>m.role==='system').map(m=>textOf(m.content)).join('\n\n');
   const history=msgs.filter(m=>m.role!=='system').slice(0,-1).map(m=>({role:m.role,content:textOf(m.content)}));const input=textOf(msgs.at(-1)?.content)||'Continue';
-  const create=await fetch(`${base}/v1/runs`,{method:'POST',headers,body:JSON.stringify({input,instructions,conversation_history:history,session_id:sessionId||undefined,model,provider,model_options:{}}),signal});
+  const create=await fetch(`${base}/v1/runs`,{method:'POST',headers,body:JSON.stringify({input,instructions,conversation_history:history,session_id:sessionId||undefined,model,provider,model_options:{reasoning_effort:reasoningLevel(payload)==='off'?'none':reasoningLevel(payload)}}),signal});
   const cd=await create.json().catch(()=>({}));if(!create.ok)throw new Error(cd?.error?.message||cd?.error||`Hermes run HTTP ${create.status}`);const runId=cd.run_id;if(!runId)throw new Error('Hermes did not return run_id');
   res.setHeader('X-AiWay-Hermes-Run-Id',runId);startSSE(res,'hermes-runs');
   let finished=false, emittedText=false;
