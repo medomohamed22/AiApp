@@ -191,3 +191,24 @@ body[data-theme="midnight"] .navitem>.ui-icon{color:#a99abc}body[data-theme="mid
 body[data-theme="midnight"] .chipbtn>.ui-icon{color:#b4a7c3}body[data-theme="midnight"] .chipbtn.on>.ui-icon{color:#fff}
 
 .agent-mode-select{max-width:150px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:7px 11px;font-size:10px;font-weight:800;outline:0}
+
+/* Composer toolbar: controls live above the input instead of inside it. */
+.composer-wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+.composer-toolbar{width:min(100%,var(--max));pointer-events:auto;padding-inline:8px}
+.composer-toolbar .composer-tools{padding-top:0;overflow:visible;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.composer-toolbar .composer-status{margin-inline-start:auto}
+.reasoning-control{position:relative;display:inline-flex;z-index:42}
+.reasoning-btn .reasoning-caret{font-size:10px;opacity:.8;margin-inline-start:1px;transition:transform var(--motion-fast) var(--ease-out)}
+.reasoning-control.open .reasoning-caret{transform:rotate(180deg)}
+.reasoning-menu{position:absolute;bottom:calc(100% + 9px);inset-inline-end:0;width:min(290px,calc(100vw - 26px));padding:7px;background:rgba(255,255,255,.98);border:1px solid var(--line);border-radius:17px;box-shadow:0 18px 50px rgba(55,35,90,.16);backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15);display:none;z-index:70;transform-origin:bottom right}
+.reasoning-control.open .reasoning-menu{display:block;animation:reasoningMenuIn .16s var(--ease-out) both}
+.reasoning-menu button{width:100%;border:0;background:transparent;color:var(--ink);border-radius:12px;padding:9px 10px;text-align:right;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;font:inherit}
+.reasoning-menu button:hover,.reasoning-menu button.active{background:var(--primary-soft);color:#4c2ba8}
+.reasoning-menu button span{font-size:11px;font-weight:800}
+.reasoning-menu button small{grid-column:1/-1;color:var(--muted);font-size:9px;line-height:1.45}
+.reasoning-menu button.active::after{content:"✓";grid-column:2;grid-row:1;color:#6e46d9;font-weight:900}
+@keyframes reasoningMenuIn{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}
+body[data-theme="midnight"] .reasoning-menu{background:rgba(28,25,36,.98);border-color:#3b3445;color:#f4effc}
+body[data-theme="midnight"] .reasoning-menu button{color:#f4effc}
+body[data-theme="midnight"] .reasoning-menu button:hover,body[data-theme="midnight"] .reasoning-menu button.active{background:#282133;color:#cdbaff}
+@media(max-width:520px){.composer-wrap{gap:7px}.composer-toolbar{padding-inline:4px}.composer-toolbar .composer-tools{gap:6px;flex-wrap:nowrap;overflow-x:auto;overflow-y:visible;padding-block:2px}.composer-toolbar .chipbtn{padding:7px 9px}.reasoning-menu{position:fixed;left:12px;right:12px;bottom:132px;width:auto}.composer-toolbar .composer-status{display:none}}
