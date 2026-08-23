@@ -553,3 +553,14 @@ body[data-theme="midnight"] .reasoning-menu button:hover,body[data-theme="midnig
 body[data-theme="midnight"] .sidebar-scroll{scrollbar-color:#5d4d72 transparent}
 body[data-theme="midnight"] .more-nav{border-color:#3a3146}
 body[data-theme="midnight"] .sidebar-foot{background:rgba(20,18,27,.98)}
+
+
+/* === Agent Intelligence 2026 === */
+.intelligence-card{background:linear-gradient(180deg,rgba(139,92,246,.055),rgba(255,255,255,.35));border-color:rgba(124,87,219,.18)}
+.intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.intel-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.58)}
+.intel-toggle>span{display:grid;gap:2px;min-width:0}.intel-toggle b{font-size:11px;color:var(--ink)}.intel-toggle small{font-size:9px;color:var(--muted);line-height:1.45}.intel-toggle .field{width:74px;min-height:34px;padding:5px 8px}
+.inspector-card{background:linear-gradient(160deg,rgba(126,73,230,.075),rgba(255,255,255,.7))}
+.inspector-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.inspector-kpi{display:grid;gap:4px;padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.65);min-width:0}.inspector-kpi span{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.inspector-kpi b{font-size:10px;overflow-wrap:anywhere}.inspector-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.inspector-tags span{font-size:8.5px;font-weight:800;padding:4px 7px;border-radius:999px;background:var(--primary-soft);color:#5b34b6}.reliability-list{display:grid;gap:5px;margin-top:9px}.reliability-list>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 8px;border-radius:10px;background:rgba(255,255,255,.56);border:1px solid var(--line);font-size:8.5px}.reliability-list code{font-size:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:58%}
+@media(max-width:620px){.intelligence-grid,.inspector-grid{grid-template-columns:1fr}.intel-toggle{padding:9px 10px}.intel-toggle .field{width:68px}}
+body[data-theme="midnight"] .intel-toggle,body[data-theme="midnight"] .inspector-kpi,body[data-theme="midnight"] .reliability-list>div{background:rgba(255,255,255,.035)}
