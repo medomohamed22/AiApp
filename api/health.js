@@ -7,6 +7,7 @@ export default function handler(req, res) {
     ok: true,
     gemini: Boolean(process.env.GEMINI_API_KEY),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+    bai: Boolean(process.env.BAI_API_KEY),
     opencode: true,
     opencodeKey: Boolean(process.env.OPENCODE_API_KEY),
     hermes: Boolean(process.env.HERMES_BASE_URL && process.env.HERMES_API_KEY),

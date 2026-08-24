@@ -2,6 +2,7 @@ import { allowMethod, bodyJson, env, json, pipeFetch, requireAppAccess, rateLimi
 import { proxyOpenCode, proxyHermesRun } from './_provider_adapters.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const BAI_URL = 'https://api.b.ai/v1/chat/completions';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 
@@ -68,6 +69,20 @@ export default async function handler(req, res) {
           'X-Title': 'AiWay',
         },
         body: JSON.stringify(applyOpenRouterReasoning(payload)),
+        signal,
+      });
+    } else if (provider === 'bai') {
+      upstream = await fetch(BAI_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env('BAI_API_KEY')}`,
+        },
+        body: JSON.stringify((() => {
+          const next = structuredClone(payload);
+          delete next.aiway_reasoning_level;
+          return next;
+        })()),
         signal,
       });
     } else if (provider === 'opencode') {

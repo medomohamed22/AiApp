@@ -151,6 +151,18 @@ export default async function handler(req, res) {
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error?.message || `OpenRouter HTTP ${r.status}`);
       details = modelDetailsFromOpenAI(d.data, 'openrouter');
+    } else if (provider === 'bai') {
+      const r = await fetch('https://api.b.ai/v1/models', {
+        headers: {
+          Authorization: `Bearer ${env('BAI_API_KEY')}`,
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.error?.message || d?.message || `B.ai HTTP ${r.status}`);
+      details = modelDetailsFromOpenAI(d.data || d.models || d, 'bai');
+      if (!details.length) throw new Error('B.ai returned an empty model catalog. You can still type a model ID manually.');
     } else if (provider === 'opencode') {
       const headers = {
         Accept: 'application/json',
