@@ -628,3 +628,127 @@ body[data-theme="midnight"] .intel-toggle,body[data-theme="midnight"] .inspector
   body[data-agent-state="thinking"]::before,body[data-agent-state="searching"]::before,body[data-agent-state="writing"]::before{transform:none!important;opacity:.2!important}
 }
 @media(prefers-reduced-motion:reduce){.activity-orb::before,.activity-dots i,.stream-cursor,.activity-trace-item.running .activity-trace-icon{animation:none!important}}
+
+/* 2026-08 hard fix: live execution is a single stable status row.
+   Never allow tool trace / RTL mixed labels to resize the chat while streaming. */
+.msg.assistant.streaming #liveActivity{
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-columns:36px minmax(0,1fr)!important;
+  grid-template-rows:auto!important;
+  direction:rtl!important;
+  align-items:center!important;
+  align-content:center!important;
+  gap:9px!important;
+  inline-size:min(100%,520px)!important;
+  block-size:auto!important;
+  height:auto!important;
+  min-block-size:50px!important;
+  min-height:50px!important;
+  max-block-size:76px!important;
+  max-height:76px!important;
+  margin:4px 0 12px!important;
+  padding:7px 9px!important;
+  overflow:hidden!important;
+  border:1px solid #e4dced!important;
+  border-radius:15px!important;
+  background:rgba(251,249,253,.94)!important;
+  box-shadow:none!important;
+  transform:none!important;
+  animation:none!important;
+  position:relative!important;
+}
+.msg.assistant.streaming #liveActivity .activity-orb{
+  grid-column:1!important;
+  grid-row:1!important;
+  align-self:center!important;
+  justify-self:center!important;
+  width:32px!important;
+  height:32px!important;
+  min-width:32px!important;
+  min-height:32px!important;
+  flex:0 0 32px!important;
+  margin:0!important;
+  transform:none!important;
+  animation:none!important;
+}
+.msg.assistant.streaming #liveActivity .activity-main{
+  grid-column:2!important;
+  grid-row:1!important;
+  display:block!important;
+  min-width:0!important;
+  width:auto!important;
+  height:auto!important;
+  overflow:hidden!important;
+  direction:rtl!important;
+  text-align:right!important;
+}
+.msg.assistant.streaming #liveActivity .activity-copy{
+  display:block!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  overflow:hidden!important;
+}
+.msg.assistant.streaming #liveActivity .activity-title,
+.msg.assistant.streaming #liveActivity .activity-detail{
+  display:block!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+  unicode-bidi:plaintext!important;
+}
+.msg.assistant.streaming #liveActivity .activity-title{
+  font-size:11px!important;
+  line-height:1.45!important;
+  font-weight:800!important;
+  color:#594d64!important;
+}
+.msg.assistant.streaming #liveActivity .activity-detail{
+  margin-top:3px!important;
+  font-size:9px!important;
+  line-height:1.45!important;
+  color:#92879b!important;
+}
+.msg.assistant.streaming #liveActivity .activity-trace,
+.msg.assistant.streaming #liveActivity .activity-sources,
+.msg.assistant.streaming #liveActivity .activity-visuals{
+  display:none!important;
+  visibility:hidden!important;
+  width:0!important;
+  height:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  overflow:hidden!important;
+}
+.msg.assistant.streaming #streamingText:empty{display:none!important}
+.msg.assistant.streaming #streamingText:not(:empty){display:block!important;margin-top:2px!important}
+
+@media(max-width:620px){
+  .msg.assistant.streaming #liveActivity{
+    grid-template-columns:32px minmax(0,1fr)!important;
+    gap:8px!important;
+    inline-size:100%!important;
+    min-block-size:48px!important;
+    min-height:48px!important;
+    max-block-size:64px!important;
+    max-height:64px!important;
+    margin:2px 0 9px!important;
+    padding:6px 8px!important;
+    border-radius:13px!important;
+  }
+  .msg.assistant.streaming #liveActivity .activity-orb{
+    width:28px!important;height:28px!important;min-width:28px!important;min-height:28px!important;flex-basis:28px!important;
+  }
+  .msg.assistant.streaming #liveActivity .activity-title{font-size:10.5px!important}
+  .msg.assistant.streaming #liveActivity .activity-detail{font-size:8.5px!important;margin-top:2px!important}
+}
