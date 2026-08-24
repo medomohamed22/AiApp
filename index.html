@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#f7f5ff" />
 <title>AiWay — AI Agent</title>
-<link rel="stylesheet" href="/assets/app.css?v=5.0-run-ui" />
+<link rel="stylesheet" href="/assets/app.css?v=4.4-sidebar" />
 </head>
 <body>
 <div class="app">
@@ -83,10 +83,10 @@
 
 <div class="backdrop" id="settingsSheet"><div class="sheet">
   <div class="sheet-head"><div class="grow"><h2>الإعدادات</h2><p class="sub">Model واحد لكل محادثة. الإعدادات العامة تحفظ محليًا، أما مفاتيح الـAPI فتبقى داخل Vercel Environment Variables ولا تصل للمتصفح.</p></div><button class="btn icon close-sheet">✕</button></div>
-  <div class="notice">نسخة Vercel: مفاتيح OpenCode Zen وHermes وGemini وOpenRouter وExa تُقرأ فقط داخل Serverless Functions. Hermes يحتاج HERMES_BASE_URL قابلًا للوصول من Vercel، وليس 127.0.0.1 على جهازك.</div>
+  <div class="notice">نسخة Vercel: مفاتيح OpenCode Zen وHermes وGemini وOpenRouter وB.ai وExa تُقرأ فقط داخل Serverless Functions. Hermes يحتاج HERMES_BASE_URL قابلًا للوصول من Vercel، وليس 127.0.0.1 على جهازك.</div>
   <div class="card">
     <h3>الموديل</h3>
-    <div class="grid2"><div><label class="label">Provider</label><select class="field" id="provider"><option value="opencode">OpenCode Zen</option><option value="hermes">Hermes Agent</option><option value="gemini">Gemini API</option><option value="openrouter">OpenRouter API</option></select></div><div><label class="label">Model</label><input class="field" id="model" placeholder="مثال: gemini-2.5-flash" /></div></div>
+    <div class="grid2"><div><label class="label">Provider</label><select class="field" id="provider"><option value="opencode">OpenCode Zen</option><option value="hermes">Hermes Agent</option><option value="gemini">Gemini API</option><option value="openrouter">OpenRouter API</option><option value="bai">B.ai API</option></select></div><div><label class="label">Model</label><input class="field" id="model" placeholder="مثال: gemini-2.5-flash" /></div></div>
     <div style="height:8px"></div>
     <div class="row"><button class="btn sm" id="loadModelsBtn">تحديث الموديلات</button><input class="field grow" id="modelFilter" placeholder="ابحث داخل الموديلات..." /></div>
     <div style="height:8px"></div><select class="field" id="modelPicker"><option>اكتب الموديل يدويًا أو حدّث القائمة</option></select>
