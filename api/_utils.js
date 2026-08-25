@@ -100,7 +100,11 @@ export async function pipeFetch(upstream, res, signal) {
   if (contentType) res.setHeader('Content-Type', contentType);
   const requestId = upstream.headers.get('x-request-id');
   if (requestId) res.setHeader('X-Upstream-Request-Id', requestId);
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', 'no-store, no-transform');
+  if (contentType && /text\/event-stream/i.test(contentType)) {
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+  }
 
   if (!upstream.body) {
     res.end(await upstream.text());
