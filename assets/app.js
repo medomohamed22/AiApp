@@ -228,48 +228,107 @@ function classifyAgentIntent(userText="",agentMode="normal"){
 function directSingleFileCodeIntent(userText=""){
  const t=String(userText||"").toLowerCase();
  const asksCode=/(html|css|javascript|java\s*script|\bjs\b|typescript|\bts\b|python|\bpy\b|react|svg|كود|برمج|صفحة|موقع)/i.test(t);
- const createIntent=/(اكتب|اعمل|أنشئ|انشئ|اصنع|صمم|create|write|build|make|generate)/i.test(t);
- const oneFile=/(ملف\s*(واحد|واحدة)|في\s*ملف\s*واحد|single[-\s]?file|one\s+file|all\s+in\s+one)/i.test(t);
- const htmlBundle=/(html[\s,+/&]*(?:and|و)?[\s,+/&]*css[\s,+/&]*(?:and|و)?[\s,+/&]*(?:js|javascript)|html.*css.*(?:js|javascript))/i.test(t);
+ // Natural Arabic requests often say “عاوز/أريد كود…” without an explicit “اكتب/اعمل”.
+ const createIntent=/(اكتب|اعمل|أنشئ|انشئ|اصنع|صمم|عاوز|عايز|اريد|أريد|محتاج|ابغى|أبغى|ودي|هات|create|write|build|make|generate|want|need)/i.test(t);
+ const oneFile=/(ملف\s*(واحد|واحدة)|في\s*ملف\s*واحد|جوه\s*ملف\s*واحد|داخل\s*ملف\s*واحد|single[-\s]?file|one\s+file|all\s+in\s+one)/i.test(t);
+ const hasHtml=/\bhtml\b/i.test(t),hasCss=/\bcss\b/i.test(t),hasJs=/(?:\bjs\b|javascript|java\s*script)/i.test(t);
+ // Treat HTML + CSS + JS as one-file web bundle regardless of the order used in the prompt.
+ const htmlBundle=hasHtml&&hasCss&&hasJs;
  const editExisting=/(عدل|عدّل|اصلح|أصلح|edit|modify|fix|refactor|existing|الموجود|الحالي)/i.test(t);
  const externalAction=/(انشر|نشر|deploy|publish|github|vercel|ابحث|بحث\s*(?:في|على)?\s*(?:الويب|النت)|search\s+(?:the\s+)?web)/i.test(t);
  if(!asksCode||!createIntent||editExisting||externalAction)return null;
  if(!(oneFile||htmlBundle))return null;
  let language='text',name='artifact.txt';
- if(/html/i.test(t)){language='html';name='index.html'}
- else if(/(?:javascript|\bjs\b)/i.test(t)){language='javascript';name='script.js'}
+ if(hasHtml){language='html';name='index.html'}
+ else if(hasJs){language='javascript';name='script.js'}
  else if(/(?:typescript|\bts\b)/i.test(t)){language='typescript';name='index.ts'}
  else if(/python|\bpy\b/i.test(t)){language='python';name='main.py'}
  return{active:true,language,name,htmlBundle:language==='html'&&htmlBundle};
 }
 function directCodeSystemHint(intent){if(!intent?.active)return"";return `\n\nFAST DIRECT CODE DELIVERY:\n- This request is a single-file code generation task. Start the user-visible answer immediately; do not call tools before writing.\n- Output one complete fenced ${intent.language} code block containing the full file.\n- ${intent.htmlBundle?'Put HTML, CSS inside <style>, and JavaScript inside <script> in the same index.html file.':'Keep everything required by the request in that one file.'}\n- Do not call artifact_save for this response. AiWay will persist the completed code block to Artifacts automatically after streaming finishes.\n- Keep any introduction extremely short so the code starts streaming as early as possible.`}
+function hybridRoutePlan(userText="",agentMode="normal"){
+ const intent=classifyAgentIntent(userText,agentMode),t=intent.text;
+ const signals={
+  web:/(latest|today|current|news|price|weather|search|web|internet|online|ابحث|بحث|الويب|النت|احدث|أحدث|اليوم|حالي|سعر|اخبار|أخبار)/i.test(t),
+  artifactRead:/(existing|current|project|file|artifact|codebase|الموجود|الحالي|المشروع|الملف|ملف|الكود الحالي|عدل|عدّل|اصلح|أصلح|راجع)/i.test(t),
+  artifactWrite:/(create|write|build|implement|edit|modify|fix|save|apply|أنشئ|انشئ|اكتب|اعمل|نفذ|عدل|عدّل|اصلح|أصلح|احفظ)/i.test(t),
+  preview:/(preview|render|browser preview|show me|معاينة|اعرض|شوف الشكل|المتصفح)/i.test(t),
+  validate:/(validate|audit|review|responsive|accessibility|test|check|راجع|افحص|اختبر|ريسبونسف|استجابة|إتاحة|اتاحة)/i.test(t),
+  execute:/(run|execute|terminal|shell|npm|node|python|build|test|تشغيل|شغل|نفذ|طرفية|اختبر)/i.test(t),
+  publish:intent.explicitPublish,
+  environment:intent.explicitEnv,
+  memorySearch:intent.memorySearch,
+  memorySave:intent.memorySave,
+  sessionSearch:intent.sessionSearch,
+  external:intent.externalIntent,
+  planning:intent.complexTask&&/(plan|steps|architecture|multi|complete|full|خطة|خطوات|معمار|كامل|متعدد)/i.test(t),
+  delegation:intent.complexTask&&/(research|compare|audit|security|architecture|deep|بحث|قارن|راجع|أمان|امن|معمار|عميق)/i.test(t),
+  evaluation:intent.complexTask&&/(review|audit|test|verify|production|publish|راجع|افحص|اختبر|تحقق|انتاج|نشر)/i.test(t)
+ };
+ let complexity=0;
+ if(intent.complexTask)complexity+=2;if(intent.coding)complexity++;if(signals.external||signals.web)complexity++;if(signals.publish)complexity+=2;if(signals.validate)complexity++;
+ const directAnswer=!intent.coding&&!signals.web&&!signals.external&&!signals.memorySearch&&!signals.memorySave&&!signals.sessionSearch&&!signals.publish&&!signals.environment;
+ const budget=directAnswer?0:complexity>=5?6:complexity>=3?4:2;
+ let confidence=.72;
+ if(directAnswer||signals.publish||signals.memorySave||signals.sessionSearch||signals.preview||signals.validate)confidence=.94;
+ else if(intent.coding&&signals.artifactRead)confidence=.9;
+ else if(signals.web)confidence=.88;
+ const route=directAnswer?'direct':signals.publish?'publish':signals.web?'research':intent.coding?'coding':signals.memorySearch||signals.sessionSearch?'memory':'agent';
+ return{intent,signals,budget,confidence,route};
+}
+function nativeToolRouteScore(name,plan,hasProjectFiles=false){
+ const s=plan.signals,i=plan.intent;let score=0;
+ const add=(cond,n)=>{if(cond)score+=n};
+ add(name==='web_search'&&s.web,100);
+ add(name==='memory_search'&&s.memorySearch,100);add(name==='session_search'&&s.sessionSearch,100);add(name==='memory_save'&&s.memorySave,100);
+ add(name==='artifact_read'&&hasProjectFiles&&s.artifactRead,92);add(name==='project_search'&&hasProjectFiles&&s.artifactRead,88);add(name==='artifact_list'&&hasProjectFiles&&s.artifactRead,62);
+ add(name==='artifact_save'&&i.wantsArtifacts&&s.artifactWrite,86);
+ add(name==='browser_preview'&&i.frontend&&s.preview,95);add(name==='responsive_test'&&i.frontend&&s.validate,88);add(name==='html_css_validator'&&i.frontend&&s.validate,90);
+ add(name==='virtual_terminal'&&i.coding&&s.execute,84);add(name==='code_execute'&&i.coding&&s.execute,80);
+ add(name==='sandbox_status'&&i.coding&&s.execute,55);add(name==='sandbox_sync'&&i.coding&&s.execute,75);add(name==='sandbox_read'&&i.coding&&s.artifactRead&&s.execute,64);add(name==='sandbox_write'&&i.coding&&s.artifactWrite&&s.execute,72);add(name==='sandbox_exec'&&i.coding&&s.execute,90);
+ add(name==='publish_project'&&s.publish,100);add(name==='environment_list'&&s.publish,72);add(name==='environment_set'&&s.environment,100);
+ add(name==='todo_plan'&&s.planning,74);add(name==='delegate_task'&&s.delegation,68);add(name==='agent_evaluate'&&s.evaluation,72);
+ // Skills are meta-tools: only expose them when a routed skill actually exists.
+ add((name==='skill_read'||name==='skill_list')&&plan.hasRelevantSkills,name==='skill_read'?66:34);
+ // Self-learning is never worth delaying a normal answer. Only expose on genuinely complex work.
+ add(name==='skill_learn'&&i.complexTask&&state.settings.selfLearningSkills!==false,28);
+ return score;
+}
 async function toolCatalog(userText="",agentMode="normal"){
- const skills=await idbAll("skills"),mcp=await idbAll("mcp"),custom=await idbAll("customtools"),defs=[];if(state.settings.toolsEnabled===false)return{defs,skills:[]};
- const {text,mode,coding,frontend,explicitPublish,explicitEnv,wantsArtifacts,wantsReview,complexTask,browserIntent,terminalIntent,externalIntent,memorySearch,memorySave,sessionSearch}=classifyAgentIntent(userText,agentMode);
- const hasProjectFiles=(await idbAll("artifacts")).some(x=>x.projectId===state.settings.activeProjectId);
- const allowed=new Set(["skill_list","skill_read"]);
- if(hasProjectFiles){allowed.add("artifact_list");allowed.add("artifact_read");allowed.add("project_search")}
- if(state.settings.webEnabled){allowed.add("web_search");if(browserIntent){allowed.add("browser_navigate");allowed.add("browser_follow");allowed.add("browser_extract")}}
- if(memorySearch)allowed.add("memory_search");if(sessionSearch)allowed.add("session_search");if(memorySave)allowed.add("memory_save")
- if(wantsArtifacts){allowed.add("artifact_list");allowed.add("artifact_read");allowed.add("project_search");if(terminalIntent)allowed.add("virtual_terminal");if(/javascript|node|calculation|algorithm|test|js|جافاسكربت|خوارزم/i.test(text))allowed.add("code_execute");if(mode!=="review"||/(fix|apply|edit|modify|اصلح|عدل|نفذ)/i.test(text))allowed.add("artifact_save")}
- if(complexTask&&state.settings.orchestration!=="off")allowed.add("todo_plan");
- if(complexTask&&state.settings.subagentsEnabled!==false&&/(review|audit|research|compare|security|architecture|complex|راجع|بحث|قارن|أمان|معمار)/i.test(text))allowed.add("delegate_task");
- if(complexTask&&state.settings.verifierEnabled!==false)allowed.add("agent_evaluate");
- if(complexTask&&state.settings.selfLearningSkills!==false)allowed.add("skill_learn");
- if(coding){allowed.add("sandbox_status");allowed.add("sandbox_read");if(terminalIntent||complexTask){allowed.add("sandbox_sync");allowed.add("sandbox_exec");allowed.add("sandbox_write")}}
- if(frontend&&coding){allowed.add("browser_preview");allowed.add("responsive_test");allowed.add("html_css_validator")}
- if(wantsReview&&frontend){allowed.add("html_css_validator");allowed.add("responsive_test")}
- if(explicitPublish){allowed.add("publish_project");allowed.add("environment_list")}
- if(explicitEnv)allowed.add("environment_set");
- const slash=(text.match(/^\s*\/([a-z0-9_-]+)/i)||[])[1];
- const relevantSkills=state.settings.skillRouter===false?skills.filter(x=>x.enabled!==false).slice(0,4):await routeSkills(userText,mode,3);
- if(slash){const exact=skills.find(x=>x.enabled!==false&&skillInfo(x).name.toLowerCase()===slash.toLowerCase());if(exact&&!relevantSkills.some(x=>x.id===exact.id))relevantSkills.unshift(exact)}
- if(!relevantSkills.length){allowed.delete("skill_list");allowed.delete("skill_read")}
- for(const [name,d] of Object.entries(nativeDefs))if((state.toolPermissions[name]||"off")!=="off"&&allowed.has(name)){if(name==="web_search"&&!state.settings.webEnabled)continue;defs.push({name,description:d.description,parameters:d.parameters,source:"native",permission:state.toolPermissions[name]})}
- if(externalIntent)for(const t of custom.filter(x=>x.permission!=="off")){const hay=`${t.name} ${t.description||""}`.toLowerCase();if(text.includes(String(t.name||"").toLowerCase())||text.split(/\s+/).some(w=>w.length>4&&hay.includes(w))){let schema={type:"object",properties:{}};try{schema=JSON.parse(t.schema||"{}")||schema}catch{}defs.push({name:t.name.replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,64),originalName:t.name,description:`[HTTP API] ${t.description||t.name}`,parameters:schema,source:"http",httpId:t.id,permission:t.permission||"ask"})}}
- if(externalIntent){const jobs=[];for(const srv of mcp.filter(x=>x.enabled!==false)){for(const t of srv.tools||[]){const perm=srv.permissions?.[t.name]||"ask";if(perm==="off")continue;jobs.push(mcpRouteScore(srv,t,userText).then(routed=>({srv,t,perm,...routed})))}}const candidates=(await Promise.all(jobs)).filter(x=>x.score>=4).sort((a,b)=>b.score-a.score);for(const x of candidates.slice(0,state.settings.mcpRouter===false?30:5)){const {srv,t,perm,score,category,stat}=x;defs.push({name:`mcp__${srv.id.replace(/-/g,"_")}__${t.name.replace(/[^a-zA-Z0-9_-]/g,"_")}`.slice(0,64),originalName:t.name,description:`[MCP: ${srv.name} • ${category} • reliability ${stat.score||75}] ${t.description||t.name}`,parameters:t.inputSchema||{type:"object",properties:{}},source:"mcp",serverId:srv.id,permission:perm,routeScore:score})}}
- currentRunInspector=currentRunInspector||{};currentRunInspector.skills=relevantSkills.slice(0,3).map(x=>({name:skillInfo(x).name,score:x._routeScore||0}));currentRunInspector.skillChain=state.settings.skillChains===false?[]:buildSkillChain(relevantSkills,userText);currentRunInspector.mcp=defs.filter(x=>x.source==="mcp").map(x=>({serverId:x.serverId,name:x.originalName,score:+(x.routeScore||0).toFixed(1)}));
- return{defs,skills:relevantSkills};
+ const defs=[];if(state.settings.toolsEnabled===false)return{defs,skills:[],route:hybridRoutePlan(userText,agentMode)};
+ const plan=hybridRoutePlan(userText,agentMode),{intent}=plan;
+ // Zero-tool route: do not touch Skills/MCP/custom-tool stores at all. This is the fastest common path.
+ if(plan.budget===0){currentRunInspector=currentRunInspector||{};currentRunInspector.router={route:plan.route,confidence:plan.confidence,budget:0,selected:[]};return{defs,skills:[],route:plan}}
+ const hasProjectFiles=intent.coding||plan.signals.artifactRead?(await idbAll("artifacts")).some(x=>x.projectId===state.settings.activeProjectId):false;
+ const slash=(intent.text.match(/^\s*\/([a-z0-9_-]+)/i)||[])[1];
+ let relevantSkills=[];
+ if(state.settings.skillsAuto!==false&&(intent.coding||intent.complexTask||slash)){
+  relevantSkills=state.settings.skillRouter===false?(await idbAll("skills")).filter(x=>x.enabled!==false).slice(0,3):await routeSkills(userText,intent.mode,2);
+  if(slash){const skills=await idbAll("skills"),exact=skills.find(x=>x.enabled!==false&&skillInfo(x).name.toLowerCase()===slash.toLowerCase());if(exact&&!relevantSkills.some(x=>x.id===exact.id))relevantSkills.unshift(exact)}
+ }
+ plan.hasRelevantSkills=!!relevantSkills.length;
+ const ranked=[];
+ for(const [name,d] of Object.entries(nativeDefs)){
+  if((state.toolPermissions[name]||"off")==="off")continue;if(name==="web_search"&&!state.settings.webEnabled)continue;
+  let score=nativeToolRouteScore(name,plan,hasProjectFiles);if(score<=0)continue;
+  if(name==='delegate_task'&&state.settings.subagentsEnabled===false)continue;if(name==='agent_evaluate'&&state.settings.verifierEnabled===false)continue;if(name==='todo_plan'&&state.settings.orchestration==='off')continue;
+  const tool={name,description:d.description,parameters:d.parameters,source:"native",permission:state.toolPermissions[name],routeScore:score};
+  if(state.settings.toolReliability!==false){const stat=await getToolStat(tool);score+=Math.max(-8,Math.min(8,((stat.score||75)-75)/3));tool.routeReliability=stat.score||75}
+  tool.routeScore=score;ranked.push(tool);
+ }
+ // Custom HTTP/MCP catalogs stay lazy and are loaded only when the request explicitly targets an external capability.
+ if(plan.signals.external){
+  const custom=await idbAll("customtools");for(const t of custom.filter(x=>x.permission!=="off")){const hay=`${t.name} ${t.description||""}`.toLowerCase(),aff=textAffinity(userText,hay);if(aff<.5&&!intent.text.includes(String(t.name||"").toLowerCase()))continue;let schema={type:"object",properties:{}};try{schema=JSON.parse(t.schema||"{}")||schema}catch{}ranked.push({name:t.name.replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,64),originalName:t.name,description:`[HTTP API] ${t.description||t.name}`,parameters:schema,source:"http",httpId:t.id,permission:t.permission||"ask",routeScore:72+aff*10})}
+  const mcp=await idbAll("mcp"),jobs=[];for(const srv of mcp.filter(x=>x.enabled!==false))for(const t of srv.tools||[]){const perm=srv.permissions?.[t.name]||"ask";if(perm!=="off")jobs.push(mcpRouteScore(srv,t,userText).then(routed=>({srv,t,perm,...routed})))}
+  const candidates=(await Promise.all(jobs)).filter(x=>x.score>=12).sort((a,b)=>b.score-a.score);for(const x of candidates.slice(0,3)){const {srv,t,perm,score,category,stat}=x;ranked.push({name:`mcp__${srv.id.replace(/-/g,"_")}__${t.name.replace(/[^a-zA-Z0-9_-]/g,"_")}`.slice(0,64),originalName:t.name,description:`[MCP: ${srv.name} • ${category} • reliability ${stat.score||75}] ${t.description||t.name}`,parameters:t.inputSchema||{type:"object",properties:{}},source:"mcp",serverId:srv.id,permission:perm,routeScore:score})}
+ }
+ ranked.sort((a,b)=>(b.routeScore||0)-(a.routeScore||0));
+ // Keep dependencies that materially help the top tool, but never blow the adaptive budget.
+ const selected=[];for(const tool of ranked){if(selected.length>=plan.budget)break;if(selected.some(x=>x.name===tool.name))continue;selected.push(tool)}
+ if(selected.some(x=>x.name==='artifact_save')&&hasProjectFiles&&!selected.some(x=>x.name==='artifact_read')&&selected.length<plan.budget){const dep=ranked.find(x=>x.name==='artifact_read');if(dep)selected.unshift(dep)}
+ defs.push(...selected.slice(0,plan.budget));
+ currentRunInspector=currentRunInspector||{};currentRunInspector.skills=relevantSkills.slice(0,2).map(x=>({name:skillInfo(x).name,score:x._routeScore||0}));currentRunInspector.skillChain=state.settings.skillChains===false?[]:buildSkillChain(relevantSkills,userText).slice(0,2);currentRunInspector.mcp=defs.filter(x=>x.source==="mcp").map(x=>({serverId:x.serverId,name:x.originalName,score:+(x.routeScore||0).toFixed(1)}));currentRunInspector.router={route:plan.route,confidence:plan.confidence,budget:plan.budget,selected:defs.map(x=>({name:x.originalName||x.name,score:+(x.routeScore||0).toFixed(1),source:x.source}))};
+ return{defs,skills:relevantSkills,route:plan};
 }
 async function askPermission(tool,args){if(tool.permission==="auto")return true;if(tool.permission==="off")return false;if(askResolver)resolvePendingPermission(false);return new Promise(res=>{askResolver=res;$("#askText").textContent=`${tool.description||tool.name}`;$("#askArgs").textContent=JSON.stringify(args,null,2);$("#askBox").classList.add("open")})}
 async function inferPublishedTargetFromHistory(){
@@ -513,8 +572,14 @@ async function addEvent(chat,name,status,preview=""){const last=chat.messages[ch
 async function runAgent(chat,userText){
   const mode=chat?.agentMode||state.settings.defaultAgentMode||"normal";
   const directCode=directSingleFileCodeIntent(userText);
-  const toolPlan=await toolCatalog(userText,mode),defs=directCode?[]:toolPlan.defs;
-  const system=(await buildSystem(userText,chat,toolPlan))+directCodeSystemHint(directCode);
+  // Fast code requests bypass tool/skill catalog loading entirely so the model request can start immediately.
+  const toolPlan=directCode?{defs:[],skills:[]}:await toolCatalog(userText,mode),defs=toolPlan.defs;
+  // Direct single-file generation deliberately skips project scans, memory ranking and workspace mapping.
+  // The user's latest request is enough context and this keeps time-to-first-token low.
+  const profile=AGENT_MODES[mode]||AGENT_MODES.normal;
+  const system=directCode
+    ? `${state.settings.systemPrompt}\n\nAGENT MODE: ${profile.label}\n${profile.prompt}${directCodeSystemHint(directCode)}`
+    : await buildSystem(userText,chat,toolPlan);
   const base=selectContextMessages(chat,system,defs);
   await addEvent(chat,"context_manager","تم",directCode?"مسار سريع: كتابة الكود مباشرة ثم حفظه تلقائيًا كـArtifact":contextSummary(chat,base,system,defs));
   if(directCode){
