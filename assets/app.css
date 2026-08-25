@@ -752,3 +752,47 @@ body[data-theme="midnight"] .intel-toggle,body[data-theme="midnight"] .inspector
   .msg.assistant.streaming #liveActivity .activity-title{font-size:10.5px!important}
   .msg.assistant.streaming #liveActivity .activity-detail{font-size:8.5px!important;margin-top:2px!important}
 }
+
+/* AiWay live execution mini-timeline — compact, SVG-only operational states */
+.msg.assistant.streaming #liveActivity{
+  align-items:start!important;
+  max-block-size:none!important;
+  max-height:none!important;
+}
+.msg.assistant.streaming #liveActivity .activity-main{min-width:0!important;width:100%!important}
+.msg.assistant.streaming #liveActivity .activity-trace{
+  display:grid!important;
+  visibility:visible!important;
+  width:auto!important;
+  height:auto!important;
+  min-height:0!important;
+  margin:7px 0 0!important;
+  padding:7px 0 0!important;
+  border-top:1px solid #eee7f4!important;
+  overflow:visible!important;
+  gap:4px!important;
+  max-height:none!important;
+}
+.msg.assistant.streaming #liveActivity .activity-trace-item{
+  grid-template-columns:20px minmax(0,1fr)!important;
+  gap:6px!important;
+  align-items:center!important;
+  min-height:22px!important;
+  opacity:.76;
+}
+.msg.assistant.streaming #liveActivity .activity-trace-item:last-child{opacity:1}
+.msg.assistant.streaming #liveActivity .activity-trace-icon{
+  width:19px!important;height:19px!important;border-radius:6px!important;
+  background:#f4f0fa!important;border-color:#e5dced!important;
+}
+.msg.assistant.streaming #liveActivity .activity-trace-icon svg{width:10px!important;height:10px!important}
+.msg.assistant.streaming #liveActivity .activity-trace-title{font-size:9px!important;line-height:1.3!important}
+.msg.assistant.streaming #liveActivity .activity-trace-detail{font-size:7.5px!important;line-height:1.35!important;margin:1px 0 0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.msg.assistant.streaming #liveActivity .activity-trace-item.done .activity-trace-icon{background:#f1faf6!important;border-color:#d7ecdf!important;color:#247653!important}
+.msg.assistant.streaming #liveActivity .activity-trace-item.running .activity-trace-icon{animation:historyPulse 1.15s ease-in-out infinite!important}
+.msg.assistant.streaming .code-shell pre code{white-space:pre!important}
+@media(max-width:620px){
+ .msg.assistant.streaming #liveActivity{max-block-size:none!important;max-height:none!important;padding:7px 8px!important}
+ .msg.assistant.streaming #liveActivity .activity-trace{margin-top:6px!important;padding-top:6px!important}
+ .msg.assistant.streaming #liveActivity .activity-trace-detail{max-width:72vw!important}
+}
