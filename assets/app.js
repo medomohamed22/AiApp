@@ -117,7 +117,7 @@ function resolvePendingPermission(allowed=false){const r=askResolver;askResolver
 function openSheet(id){return withViewTransition(()=>$(id)?.classList.add("open"))}function closeSheets(){return withViewTransition(()=>{$$(".backdrop").forEach(x=>x.classList.remove("open"));resolvePendingPermission(false)})}
 function parseFrontmatter(content){const raw=String(content??"").replace(/^\uFEFF/,"");const normalized=raw.replace(/\r\n?/g,"\n");let meta={},body=normalized;if(!normalized.startsWith("---"))return{meta,body};const lines=normalized.split("\n");if(lines[0].trim()!=="---")return{meta,body};let end=-1;for(let i=1;i<lines.length;i++){if(lines[i].trim()==="---"){end=i;break}}if(end<0)return{meta,body};for(const line of lines.slice(1,end)){if(!line.trim()||/^\s*#/.test(line))continue;const i=line.indexOf(":");if(i<=0)continue;const key=line.slice(0,i).trim();let value=line.slice(i+1).trim();if((value.startsWith('"')&&value.endsWith('"'))||(value.startsWith("'")&&value.endsWith("'")))value=value.slice(1,-1);meta[key]=value}body=lines.slice(end+1).join("\n").replace(/^\n/,"");return{meta,body}}
 function skillInfo(s){const p=parseFrontmatter(s.content);return{name:p.meta.name||s.name||"untitled-skill",description:p.meta.description||s.description||"Skill بدون وصف",version:p.meta.version||"1.0",content:s.content}}
-function toolsEnabledCount(mcp=[]){if(state.settings.toolsEnabled===false)return 0;const native=Object.entries(state.toolPermissions).filter(([name,perm])=>perm!=="off"&&!(name==="web_search"&&!state.settings.webEnabled)).length;const remote=mcp.filter(s=>s.enabled!==false).reduce((n,s)=>n+(s.tools||[]).filter(t=>(s.permissions?.[t.name]||"ask")!=="off").length,0);return native+remote}
+function toolsEnabledCount(mcp=[]){if(state.settings.toolsEnabled===false)return 0;const native=Object.entries(state.toolPermissions).filter(([,perm])=>perm!=="off").length;const remote=mcp.filter(s=>s.enabled!==false).reduce((n,s)=>n+(s.tools||[]).filter(t=>(s.permissions?.[t.name]||"ask")!=="off").length,0);return native+remote}
 async function estimateStorage(){if(navigator.storage?.estimate){const e=await navigator.storage.estimate();return `${((e.usage||0)/1024/1024).toFixed(1)} MB` }return"غير متاح"}
 
 /* ---------- rendering ---------- */
@@ -246,10 +246,26 @@ function directSingleFileCodeIntent(userText=""){
  return{active:true,language,name,htmlBundle:language==='html'&&htmlBundle};
 }
 function directCodeSystemHint(intent){if(!intent?.active)return"";return `\n\nFAST DIRECT CODE DELIVERY:\n- This request is a single-file code generation task. Start the user-visible answer immediately; do not call tools before writing.\n- Output one complete fenced ${intent.language} code block containing the full file.\n- ${intent.htmlBundle?'Put HTML, CSS inside <style>, and JavaScript inside <script> in the same index.html file.':'Keep everything required by the request in that one file.'}\n- Do not call artifact_save for this response. AiWay will persist the completed code block to Artifacts automatically after streaming finishes.\n- Keep any introduction extremely short so the code starts streaming as early as possible.`}
+function detectSearchIntent(userText=""){
+ const raw=String(userText||"").trim(),t=raw.toLowerCase();
+ const explicit=/(?:^|\s)(?:search|look\s*up|browse\s+for|find\s+(?:online|on\s+the\s+web)|web\s+search)(?:\s|$)|(?:ابحث|إبحث|دور\s+على|دو[ّ]?ر\s+على|فت[ّ]?ش\s+عن|شوف\s+(?:على|في)\s+(?:النت|الويب|الانترنت|الإنترنت)|هات(?:لي)?\s+(?:مصادر|مراجع)|جيب(?:لي)?\s+(?:مصادر|مراجع))/i.test(raw);
+ const freshness=/(?:latest|newest|current(?:ly)?|right\s+now|today|tonight|this\s+(?:week|month|year)|recent(?:ly)?|breaking|news|live\s+score|weather|forecast|price\s+(?:now|today)|availability|release\s+date|latest\s+version|أحدث|احدث|آخر\s+(?:خبر|أخبار|الاخبار|الأخبار|تحديث|تطورات|إصدار|اصدار|نسخة|نتيجة)|دلوقتي|الآن|الان|حالي[ًاا]|النهارده|النهاردة|اليوم|هذا\s+(?:الأسبوع|الاسبوع|الشهر|العام)|مؤخر[ًاا]|أخبار|اخبار|خبر\s+عاجل|سعر\s+(?:اليوم|دلوقتي|حالي[ًاا])|الطقس|طقس|نتيجة\s+(?:المباراة|الماتش)|موعد\s+(?:المباراة|الماتش))/i.test(raw);
+ const changingEntity=/(?:who\s+is\s+(?:the\s+)?(?:current\s+)?(?:president|prime\s+minister|ceo)|stock\s+price|exchange\s+rate|sports?\s+(?:score|result)|flight\s+status|مين\s+(?:هو\s+)?(?:رئيس|الرئيس|رئيس\s+الوزراء)|سعر\s+(?:الدولار|اليورو|الذهب|البيتكوين|bitcoin)|نتيجة\s+(?:مباراة|ماتش)|ترتيب\s+(?:الدوري|البطولة))/i.test(raw);
+ const sourceRequest=/(?:source|sources|citation|citations|verify\s+online|check\s+online|مصدر|مصادر|مرجع|مراجع|تحقق\s+(?:من|على)\s+(?:الويب|النت|الإنترنت|الانترنت))/i.test(raw);
+ // "جديد/جديدة" alone is intentionally not a freshness trigger (e.g. "اعمل صفحة جديدة").
+ const contextualNew=/(?:ما\s+الجديد|ايه\s+الجديد|إيه\s+الجديد|الجديد\s+(?:عن|في)|new\s+(?:updates?|developments?)\s+(?:about|on))/i.test(raw);
+ const force=explicit||freshness||changingEntity||sourceRequest||contextualNew;
+ const possible=force||/(?:official\s+(?:docs?|documentation)|documentation|docs|website|online|internet|external|توثيق\s+رسمي|الموقع\s+الرسمي|على\s+الويب|على\s+النت|الإنترنت|الانترنت)/i.test(raw);
+ const reason=explicit?'explicit':freshness||contextualNew?'freshness':changingEntity?'changing-data':sourceRequest?'sources':possible?'external':'none';
+ return{explicit,freshness,changingEntity,sourceRequest,contextualNew,force,suggested:possible,reason,query:raw};
+}
+function webSearchAllowed(plan){return state.settings.toolsEnabled!==false&&(state.toolPermissions.web_search||"ask")!=="off"&&(!!state.settings.webEnabled||!!plan?.search?.suggested||!!plan?.signals?.web)}
+function webEvidenceSystemBlock(search){if(!search?.results)return"";return `\n\nLIVE WEB SEARCH EVIDENCE FOR THIS REQUEST:\n- A live search was already executed by AiWay before this model turn. Do NOT call web_search again for the same request unless the evidence is clearly insufficient.\n- Answer the user's original request using this evidence, distinguish uncertain claims, and cite/source links present in the evidence when useful.\n\n${String(search.results).slice(0,36000)}`}
+
 function hybridRoutePlan(userText="",agentMode="normal"){
- const intent=classifyAgentIntent(userText,agentMode),t=intent.text;
+ const intent=classifyAgentIntent(userText,agentMode),t=intent.text,search=detectSearchIntent(userText);
  const signals={
-  web:/(latest|today|current|news|price|weather|search|web|internet|online|ابحث|بحث|الويب|النت|احدث|أحدث|اليوم|حالي|سعر|اخبار|أخبار)/i.test(t),
+  web:search.suggested,
   artifactRead:/(existing|current|project|file|artifact|codebase|الموجود|الحالي|المشروع|الملف|ملف|الكود الحالي|عدل|عدّل|اصلح|أصلح|راجع)/i.test(t),
   artifactWrite:/(create|write|build|implement|edit|modify|fix|save|apply|أنشئ|انشئ|اكتب|اعمل|نفذ|عدل|عدّل|اصلح|أصلح|احفظ)/i.test(t),
   preview:/(preview|render|browser preview|show me|معاينة|اعرض|شوف الشكل|المتصفح)/i.test(t),
@@ -274,7 +290,7 @@ function hybridRoutePlan(userText="",agentMode="normal"){
  else if(intent.coding&&signals.artifactRead)confidence=.9;
  else if(signals.web)confidence=.88;
  const route=directAnswer?'direct':signals.publish?'publish':signals.web?'research':intent.coding?'coding':signals.memorySearch||signals.sessionSearch?'memory':'agent';
- return{intent,signals,budget,confidence,route};
+ return{intent,signals,budget,confidence,route,search};
 }
 function nativeToolRouteScore(name,plan,hasProjectFiles=false){
  const s=plan.signals,i=plan.intent;let score=0;
@@ -309,7 +325,7 @@ async function toolCatalog(userText="",agentMode="normal"){
  plan.hasRelevantSkills=!!relevantSkills.length;
  const ranked=[];
  for(const [name,d] of Object.entries(nativeDefs)){
-  if((state.toolPermissions[name]||"off")==="off")continue;if(name==="web_search"&&!state.settings.webEnabled)continue;
+  if((state.toolPermissions[name]||"off")==="off")continue;if(name==="web_search"&&!webSearchAllowed(plan))continue;
   let score=nativeToolRouteScore(name,plan,hasProjectFiles);if(score<=0)continue;
   if(name==='delegate_task'&&state.settings.subagentsEnabled===false)continue;if(name==='agent_evaluate'&&state.settings.verifierEnabled===false)continue;if(name==='todo_plan'&&state.settings.orchestration==='off')continue;
   const tool={name,description:d.description,parameters:d.parameters,source:"native",permission:state.toolPermissions[name],routeScore:score};
@@ -571,15 +587,28 @@ async function buildSystem(userText="",chat=null,toolPlan=null){chat=chat||await
 async function addEvent(chat,name,status,preview=""){const last=chat.messages[chat.messages.length-1];if(last?.role==="tool_event"&&last.name===name&&!/تم|خطأ|done|error/i.test(last.status||"")&&/تم|خطأ|done|error/i.test(status||"")){last.status=status;last.preview=String(preview||last.preview||"").slice(0,600);last.time=Date.now()}else chat.messages.push({id:uid(),role:"tool_event",name,status,preview:String(preview||"").slice(0,600),time:Date.now()});chat.updated=Date.now();await idbPut("chats",chat);pushRunActivity(name,status,preview);const v=toolVisual(name);setActivity(v.activity,preview||`${v.label} • ${activityStatusLabel(status)}`)}
 async function runAgent(chat,userText){
   const mode=chat?.agentMode||state.settings.defaultAgentMode||"normal";
-  const directCode=directSingleFileCodeIntent(userText);
+  const directCode=directSingleFileCodeIntent(userText),searchIntent=detectSearchIntent(userText);
+  // Explicit/fresh/current-data requests search deterministically before the model turn.
+  // This avoids tool_choice=auto silently skipping a search the user clearly asked for.
+  let forcedWeb=null;
+  const canForceWeb=!directCode&&searchIntent.force&&state.settings.toolsEnabled!==false&&(state.toolPermissions.web_search||"ask")!=="off";
+  if(canForceWeb){
+    await addEvent(chat,"web_search","يعمل…",searchIntent.reason==="explicit"?"طلب بحث صريح — بنفذ البحث قبل صياغة الرد":"المعلومة متغيرة زمنيًا — بتحقق من الويب قبل الرد");
+    try{forcedWeb=await webSearch(searchIntent.query);await addEvent(chat,"web_search","تم",`تم جمع نتائج مباشرة من الويب • ${forcedWeb.sources?.length||0} مصدر`)}
+    catch(e){await addEvent(chat,"web_search","خطأ",e.message||"تعذر البحث");forcedWeb={error:e.message||String(e)}}
+  }
   // Fast code requests bypass tool/skill catalog loading entirely so the model request can start immediately.
-  const toolPlan=directCode?{defs:[],skills:[]}:await toolCatalog(userText,mode),defs=toolPlan.defs;
+  const toolPlan=directCode?{defs:[],skills:[],route:hybridRoutePlan(userText,mode)}:await toolCatalog(userText,mode);
+  // If deterministic search already ran, don't expose web_search again and risk duplicate latency/calls.
+  if(forcedWeb?.results)toolPlan.defs=toolPlan.defs.filter(t=>t.name!=="web_search");
+  const defs=toolPlan.defs;
   // Direct single-file generation deliberately skips project scans, memory ranking and workspace mapping.
   // The user's latest request is enough context and this keeps time-to-first-token low.
   const profile=AGENT_MODES[mode]||AGENT_MODES.normal;
-  const system=directCode
+  let system=directCode
     ? `${state.settings.systemPrompt}\n\nAGENT MODE: ${profile.label}\n${profile.prompt}${directCodeSystemHint(directCode)}`
     : await buildSystem(userText,chat,toolPlan);
+  if(forcedWeb?.results)system+=webEvidenceSystemBlock(forcedWeb);
   const base=selectContextMessages(chat,system,defs);
   await addEvent(chat,"context_manager","تم",directCode?"مسار سريع: كتابة الكود مباشرة ثم حفظه تلقائيًا كـArtifact":contextSummary(chat,base,system,defs));
   if(directCode){
