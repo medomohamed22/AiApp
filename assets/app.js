@@ -53,6 +53,10 @@ tags: [coding, testing, terminal, debugging]
 Inspect before editing. Use project_search first, artifact_read for exact files, artifact_save for minimal changes. Use virtual_terminal for repository-style inspection and code_execute for isolated JavaScript checks. Run validators/evaluators after changes. Preserve existing behavior unless the request explicitly changes it.`
 ];
 
+const REASONING_LABELS={off:"إيقاف",low:"عادي",medium:"متوسط",high:"عالي"};
+function reasoningLevel(){const v=String(state.settings.reasoningLevel||"off").toLowerCase();return Object.hasOwn(REASONING_LABELS,v)?v:"off"}
+function renderReasoning(){const level=reasoningLevel(),btn=$("#reasoningToggle"),label=$("#reasoningLabel"),menu=$("#reasoningMenu");if(label)label.textContent="تفكير";if(btn){btn.classList.toggle("on",level!=="off");btn.setAttribute("aria-pressed",level!=="off"?"true":"false");btn.title=`مستوى التفكير: ${REASONING_LABELS[level]}`}if(menu)menu.querySelectorAll("[data-reasoning]").forEach(x=>{const active=x.dataset.reasoning===level;x.classList.toggle("active",active);x.setAttribute("aria-checked",active?"true":"false")})}
+
 const AGENT_MODES={
  normal:{label:"Normal",prompt:"تصرف كمساعد شخصي عام. أجب مباشرة، واستعمل البرمجة أو البحث أو الملفات فقط عندما يطلبها المستخدم أو تحتاجها الإجابة."},
  coding:{label:"Coding",prompt:"ركز على كتابة كود صحيح وقابل للصيانة. افهم المتطلبات، أنشئ/عدّل الملفات المطلوبة عبر Artifacts، وتحقق من الواجهات عند الحاجة. لا تنشر خارجيًا إلا بطلب صريح."},
