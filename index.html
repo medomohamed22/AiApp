@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#f7f5ff" />
 <title>AiWay — AI Agent</title>
-<link rel="stylesheet" href="/assets/app.css?v=5.0-responsive-overhaul" />
+<link rel="stylesheet" href="/assets/app.css?v=5.3-mobile-interaction-integrity" />
 </head>
 <body>
 <div class="app">
@@ -243,6 +243,6 @@
 <div class="askbox" id="askBox"><h3>السماح بتشغيل الأداة؟</h3><p id="askText"></p><pre id="askArgs"></pre><div class="row"><button class="btn primary grow" id="askAllow">سماح هذه المرة</button><button class="btn" id="askDeny">رفض</button></div></div>
 <div class="secretbox" id="secretBox" role="dialog" aria-modal="true" aria-labelledby="secretTitle"><h3 id="secretTitle">إضافة Secret للمشروع</h3><p id="secretHelp">أدخل قيمة المفتاح. سيتم إرسالها مباشرة إلى Vercel ولن تدخل إلى المحادثة.</p><div><span class="secret-key" id="secretKeyLabel">API_KEY</span></div><div style="height:9px"></div><input class="field" id="secretValueInput" type="password" autocomplete="new-password" placeholder="الصق API key هنا" /><div class="secret-security"><span>🔒</span><span>القيمة لا تُحفظ في IndexedDB أو Artifacts أو رسائل المحادثة، ولا يتم إرجاعها من الأداة للنموذج.</span></div><div class="row wrap"><a class="btn sm" id="secretProviderLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">فتح لوحة مزود الـAPI ↗</a><span class="grow"></span><button class="btn" id="secretCancelBtn">إلغاء</button><button class="btn primary" id="secretSaveBtn">حفظ في Vercel</button></div></div>
 
-<script src="/assets/app.js?v=5.2.0-runtime-integrity-fix" defer></script>
+<script src="/assets/app.js?v=5.3-mobile-interaction-integrity" defer></script>
 </body>
 </html>
