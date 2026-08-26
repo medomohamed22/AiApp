@@ -79,7 +79,7 @@ const AGENT_MODES={
  security:{label:"Security Review",prompt:"ركز على الأمان: الأسرار، التحقق من الإدخال، auth، الصلاحيات، XSS/CSRF/SSRF، تسريب البيانات واعتماديات الطرف الثالث. قدّم إصلاحات عملية واحفظها كملفات فقط إذا طلب المستخدم التعديل."},
  review:{label:"Code Review",prompt:"راجع الكود بدون تعديل افتراضيًا: رتب المشاكل حسب الخطورة، اشرح الأثر واقترح إصلاحًا. عدّل الملفات فقط إذا طلب المستخدم تنفيذ الإصلاحات."}
 };
-const defaults={settings:{provider:"opencode",model:"mimo-v2.5-free",systemPrompt:DEFAULT_SYSTEM,temperature:.35,maxRounds:9,maxOutputTokens:8192,historyLimit:30,webEnabled:false,toolsEnabled:true,skillsAuto:true,memoryEnabled:true,activeProjectId:null,contextMode:"smart",contextCharBudget:50000,modelRouting:"fixed",fastModel:"",qualityModel:"",searchRouting:"auto",visualImageLimit:4,defaultAgentMode:"normal",hermesMode:"native",orchestration:"smart",verifierEnabled:true,subagentsEnabled:true,selfLearningSkills:true,skillLearningThreshold:82,reasoningLevel:"off",skillRouter:true,skillChains:true,mcpRouter:true,memoryConsolidation:true,workspaceAwareness:true,toolReliability:true,agentInspector:true}, toolPermissions:{skill_list:"auto",skill_read:"auto",web_search:"ask",memory_save:"auto",memory_search:"auto",session_search:"auto",artifact_list:"auto",artifact_read:"auto",project_search:"auto",artifact_save:"ask",virtual_terminal:"auto",code_execute:"ask",todo_plan:"auto",delegate_task:"ask",agent_evaluate:"auto",skill_learn:"ask",sandbox_status:"auto",sandbox_sync:"ask",sandbox_read:"auto",sandbox_write:"ask",sandbox_exec:"ask",browser_navigate:"ask",browser_follow:"ask",browser_extract:"auto",browser_preview:"auto",responsive_test:"auto",html_css_validator:"auto",environment_list:"auto",environment_set:"ask",publish_project:"ask"}};
+const defaults={settings:{provider:"opencode",model:"mimo-v2.5-free",systemPrompt:DEFAULT_SYSTEM,temperature:.35,maxRounds:9,maxOutputTokens:8192,historyLimit:30,webEnabled:false,toolsEnabled:true,skillsAuto:true,memoryEnabled:true,activeProjectId:null,contextMode:"smart",contextCharBudget:50000,modelRouting:"fixed",fastModel:"",qualityModel:"",searchRouting:"auto",visualImageLimit:4,defaultAgentMode:"normal",hermesMode:"native",orchestration:"smart",verifierEnabled:true,subagentsEnabled:true,selfLearningSkills:true,skillLearningThreshold:82,reasoningLevel:"off",skillRouter:true,skillChains:true,mcpRouter:true,memoryConsolidation:true,workspaceAwareness:true,toolReliability:true,agentInspector:true}, toolPermissions:{tool_search:"auto",skill_list:"auto",skill_read:"auto",web_search:"ask",memory_save:"auto",memory_search:"auto",session_search:"auto",artifact_list:"auto",artifact_read:"auto",project_search:"auto",artifact_save:"ask",virtual_terminal:"auto",code_execute:"ask",todo_plan:"auto",delegate_task:"ask",agent_evaluate:"auto",skill_learn:"ask",sandbox_status:"auto",sandbox_sync:"ask",sandbox_read:"auto",sandbox_write:"ask",sandbox_exec:"ask",browser_navigate:"ask",browser_follow:"ask",browser_extract:"auto",browser_preview:"auto",responsive_test:"auto",html_css_validator:"auto",environment_list:"auto",environment_set:"ask",publish_project:"ask"}};
 let db,state=structuredClone(defaults),activeChatId=null,pendingFiles=[],controller=null,editingSkillId=null,editingProposalId=null,editingMcpId=null,editingProjectId=null,editingArtifactId=null,editingHttpToolId=null,askResolver=null,loadedModels=[],loadedModelDetails={},hermesCapabilities=null,slashItems=[],slashIndex=0,streamText="",streamDisplayText="",streamRAF=0,streamLastPaint=0,streamActivityKind="",streamSearchQuery="",followStream=true,runtimeModelOverride="",currentRunSources=[],currentRunVisionImages=[],currentRunActivity=[],runtimeContextPlan=null,runtimeUserQuery="",currentSearchRoute="web",runStartedAt=0,firstTextAt=0,publishAccessKey="",appAccessKey="",exaApiKey="",secretResolver=null,currentBrowserSnapshot=null,currentAgentPlan=null,currentRunInspector=null;
 
 /* ---------- IndexedDB ---------- */
@@ -169,6 +169,7 @@ async function renderMessages({focusMessageId=null}={}){
 }
 async function renderSkills(){const skills=await idbAll("skills"),box=$("#skillsList"),enabledCount=skills.filter(s=>s.enabled!==false).length;$("#skillCount").textContent=enabledCount===skills.length?String(skills.length):`${enabledCount}/${skills.length}`;box.innerHTML=skills.sort((a,b)=>b.updated-a.updated).map(s=>{const x=skillInfo(s);return`<div class="itemcard"><div class="itemtop"><div class="itemicon">✦</div><div class="grow"><div class="itemname">/${esc(x.name)}</div><div class="itemdesc">${esc(x.description)}</div></div><span class="badge ${s.enabled!==false?"ok":""}">${s.enabled!==false?"ON":"OFF"}</span></div><div class="itemactions"><button class="btn sm" data-editskill="${s.id}">تعديل</button><button class="btn sm" data-toggleskill="${s.id}">${s.enabled!==false?"تعطيل":"تفعيل"}</button></div></div>`}).join("")}
 const nativeDefs={
+ tool_search:{description:"Search the deferred AiWay capability catalog for tools, Skills, MCP tools, and HTTP tools that may help with the current task. Call this whenever external/current information, project access, execution, memory, publishing, or another capability could improve the answer and the needed tool is not already loaded. The model may also answer directly without calling this tool. Describe the needed capability in concise English terms rather than guessing a tool name.",parameters:{type:"object",properties:{query:{type:"string",description:"Capability or action needed, e.g. current web information, inspect project code, GitHub issues, database query, UI validation"},maxResults:{type:"number",description:"How many executable tools to load; default 8, max 12"}},required:["query"]}},
  skill_list:{description:"List available Skills metadata.",parameters:{type:"object",properties:{}}},
  skill_read:{description:"Read the full content of one Skill by name when its instructions are relevant.",parameters:{type:"object",properties:{name:{type:"string",description:"Skill name"}},required:["name"]}},
  web_search:{description:"Search the live web through Exa Search. Use whenever the user explicitly asks to search/browse, names web_search/search tool, needs current information, or asks for external verification.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
@@ -337,41 +338,32 @@ function nativeToolRouteScore(name,plan,hasProjectFiles=false){
  add(name==='skill_learn'&&i.complexTask&&state.settings.selfLearningSkills!==false,28);
  return score;
 }
-async function toolCatalog(userText="",agentMode="normal"){
- const defs=[];if(state.settings.toolsEnabled===false)return{defs,skills:[],route:hybridRoutePlan(userText,agentMode)};
- const plan=hybridRoutePlan(userText,agentMode),{intent}=plan;
- // Zero-tool route: do not touch Skills/MCP/custom-tool stores at all. This is the fastest common path.
- if(plan.budget===0){currentRunInspector=currentRunInspector||{};currentRunInspector.router={route:plan.route,confidence:plan.confidence,budget:0,selected:[]};return{defs,skills:[],route:plan}}
- const hasProjectFiles=intent.coding||plan.signals.artifactRead?(await idbAll("artifacts")).some(x=>x.projectId===state.settings.activeProjectId):false;
- const slash=(intent.text.match(/^\s*\/([a-z0-9_-]+)/i)||[])[1];
- let relevantSkills=[];
- if(state.settings.skillsAuto!==false&&(intent.coding||intent.complexTask||slash)){
-  relevantSkills=state.settings.skillRouter===false?(await idbAll("skills")).filter(x=>x.enabled!==false).slice(0,3):await routeSkills(userText,intent.mode,2);
-  if(slash){const skills=await idbAll("skills"),exact=skills.find(x=>x.enabled!==false&&skillInfo(x).name.toLowerCase()===slash.toLowerCase());if(exact&&!relevantSkills.some(x=>x.id===exact.id))relevantSkills.unshift(exact)}
- }
- plan.hasRelevantSkills=!!relevantSkills.length;
- const ranked=[];
+async function deferredToolCandidates(query="",maxResults=8){
+ const q=String(query||"").trim(),limit=Math.max(1,Math.min(12,Number(maxResults)||8)),ranked=[],skills=[];
+ const aliases={web_search:'fresh current live internet web research news prices verification official sources',project_search:'project code codebase files inspect source repository local',artifact_read:'read project file artifact source existing',artifact_save:'write edit create update project file artifact',browser_preview:'preview render ui webpage layout',responsive_test:'responsive mobile tablet desktop test ui',html_css_validator:'validate html css accessibility frontend',memory_search:'memory recall saved preference context',memory_save:'remember save durable preference decision',session_search:'previous chats conversation history',virtual_terminal:'terminal files grep find project',code_execute:'execute javascript calculation test',sandbox_exec:'shell npm node python build test git command',sandbox_sync:'sync project files sandbox',browser_navigate:'open url website docs browser page',browser_extract:'extract webpage text',publish_project:'publish deploy github vercel production',environment_list:'environment variables secrets configuration',environment_set:'set secret api key environment variable',todo_plan:'plan multi step orchestration',delegate_task:'parallel subagent research analysis',agent_evaluate:'verify evaluate audit correctness security',skill_read:'skill instructions workflow expertise'};
  for(const [name,d] of Object.entries(nativeDefs)){
-  if((state.toolPermissions[name]||"off")==="off")continue;if(name==="web_search"&&!webSearchAllowed(plan))continue;
-  let score=nativeToolRouteScore(name,plan,hasProjectFiles);if(score<=0)continue;
-  if(name==='delegate_task'&&state.settings.subagentsEnabled===false)continue;if(name==='agent_evaluate'&&state.settings.verifierEnabled===false)continue;if(name==='todo_plan'&&state.settings.orchestration==='off')continue;
-  const tool={name,description:d.description,parameters:d.parameters,source:"native",permission:state.toolPermissions[name],routeScore:score};
-  if(state.settings.toolReliability!==false){const stat=await getToolStat(tool);score+=Math.max(-8,Math.min(8,((stat.score||75)-75)/3));tool.routeReliability=stat.score||75}
-  tool.routeScore=score;ranked.push(tool);
+  if(name==="tool_search"||(state.toolPermissions[name]||"off")==="off")continue;
+  if(name==='delegate_task'&&state.settings.subagentsEnabled===false)continue;if(name==='agent_evaluate'&&state.settings.verifierEnabled===false)continue;if(name==='todo_plan'&&state.settings.orchestration==='off')continue;if(name==='skill_learn'&&state.settings.selfLearningSkills===false)continue;
+  let score=textAffinity(q,`${name} ${d.description||""}`)*12+textAffinity(q,aliases[name]||'')*10;
+  const tool={name,description:d.description,parameters:d.parameters,source:"native",permission:state.toolPermissions[name]||"auto",deferred:true,routeScore:score};
+  if(state.settings.toolReliability!==false){const stat=await getToolStat(tool);tool.routeReliability=stat.score||75;score+=Math.max(-6,Math.min(6,((stat.score||75)-75)/4));tool.routeScore=score}
+  ranked.push(tool);
  }
- // Custom HTTP/MCP catalogs stay lazy and are loaded only when the request explicitly targets an external capability.
- if(plan.signals.external){
-  const custom=await idbAll("customtools");for(const t of custom.filter(x=>x.permission!=="off")){const hay=`${t.name} ${t.description||""}`.toLowerCase(),aff=textAffinity(userText,hay);if(aff<.5&&!intent.text.includes(String(t.name||"").toLowerCase()))continue;let schema={type:"object",properties:{}};try{schema=JSON.parse(t.schema||"{}")||schema}catch{}ranked.push({name:t.name.replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,64),originalName:t.name,description:`[HTTP API] ${t.description||t.name}`,parameters:schema,source:"http",httpId:t.id,permission:t.permission||"ask",routeScore:72+aff*10})}
-  const mcp=await idbAll("mcp"),jobs=[];for(const srv of mcp.filter(x=>x.enabled!==false))for(const t of srv.tools||[]){const perm=srv.permissions?.[t.name]||"ask";if(perm!=="off")jobs.push(mcpRouteScore(srv,t,userText).then(routed=>({srv,t,perm,...routed})))}
-  const candidates=(await Promise.all(jobs)).filter(x=>x.score>=12).sort((a,b)=>b.score-a.score);for(const x of candidates.slice(0,3)){const {srv,t,perm,score,category,stat}=x;ranked.push({name:`mcp__${srv.id.replace(/-/g,"_")}__${t.name.replace(/[^a-zA-Z0-9_-]/g,"_")}`.slice(0,64),originalName:t.name,description:`[MCP: ${srv.name} • ${category} • reliability ${stat.score||75}] ${t.description||t.name}`,parameters:t.inputSchema||{type:"object",properties:{}},source:"mcp",serverId:srv.id,permission:perm,routeScore:score})}
- }
- ranked.sort((a,b)=>(b.routeScore||0)-(a.routeScore||0));
- // Keep dependencies that materially help the top tool, but never blow the adaptive budget.
- const selected=[];for(const tool of ranked){if(selected.length>=plan.budget)break;if(selected.some(x=>x.name===tool.name))continue;selected.push(tool)}
- if(selected.some(x=>x.name==='artifact_save')&&hasProjectFiles&&!selected.some(x=>x.name==='artifact_read')&&selected.length<plan.budget){const dep=ranked.find(x=>x.name==='artifact_read');if(dep)selected.unshift(dep)}
- defs.push(...selected.slice(0,plan.budget));
- currentRunInspector=currentRunInspector||{};currentRunInspector.skills=relevantSkills.slice(0,2).map(x=>({name:skillInfo(x).name,score:x._routeScore||0}));currentRunInspector.skillChain=state.settings.skillChains===false?[]:buildSkillChain(relevantSkills,userText).slice(0,2);currentRunInspector.mcp=defs.filter(x=>x.source==="mcp").map(x=>({serverId:x.serverId,name:x.originalName,score:+(x.routeScore||0).toFixed(1)}));currentRunInspector.router={route:plan.route,confidence:plan.confidence,budget:plan.budget,selected:defs.map(x=>({name:x.originalName||x.name,score:+(x.routeScore||0).toFixed(1),source:x.source}))};
- return{defs,skills:relevantSkills,route:plan};
+ if(state.settings.skillsAuto!==false){for(const raw of (await idbAll("skills")).filter(x=>x.enabled!==false)){const info=skillInfo(raw),score=textAffinity(q,`${info.name} ${info.description}`)*14;if(score>0)skills.push({name:info.name,description:info.description,score})}}
+ const custom=await idbAll("customtools");for(const t of custom.filter(x=>x.permission!=="off")){let schema={type:"object",properties:{}};try{schema=JSON.parse(t.schema||"{}")||schema}catch{}const score=textAffinity(q,`${t.name} ${t.description||""} http api external`)*14;ranked.push({name:t.name.replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,64),originalName:t.name,description:`[HTTP API] ${t.description||t.name}`,parameters:schema,source:"http",httpId:t.id,permission:t.permission||"ask",deferred:true,routeScore:score})}
+ const mcp=await idbAll("mcp");for(const srv of mcp.filter(x=>x.enabled!==false))for(const t of srv.tools||[]){const perm=srv.permissions?.[t.name]||"ask";if(perm==="off")continue;const category=t.category||classifyMcpCapability(t,srv),score=textAffinity(q,`${srv.name} ${t.name} ${t.description||""} ${category} mcp external`)*14;ranked.push({name:`mcp__${srv.id.replace(/-/g,"_")}__${t.name.replace(/[^a-zA-Z0-9_-]/g,"_")}`.slice(0,64),originalName:t.name,description:`[MCP: ${srv.name} • ${category}] ${t.description||t.name}`,parameters:t.inputSchema||{type:"object",properties:{}},source:"mcp",serverId:srv.id,permission:perm,deferred:true,routeScore:score})}
+ ranked.sort((a,b)=>(b.routeScore||0)-(a.routeScore||0));skills.sort((a,b)=>b.score-a.score);
+ const positive=ranked.filter(x=>(x.routeScore||0)>0),chosen=(positive.length?positive:ranked).slice(0,limit);
+ return{defs:chosen,skills:skills.slice(0,4)};
+}
+async function toolCatalog(userText="",agentMode="normal"){
+ const plan=hybridRoutePlan(userText,agentMode),defs=[];
+ if(state.settings.toolsEnabled===false)return{defs,skills:[],route:plan,deferred:true};
+ const d=nativeDefs.tool_search;
+ defs.push({name:"tool_search",description:d.description,parameters:d.parameters,source:"native",permission:"auto",deferred:false,routeScore:100});
+ currentRunInspector=currentRunInspector||{};currentRunInspector.router={route:"model-auto",confidence:1,budget:1,selected:[{name:"tool_search",score:100,source:"native"}],strategy:"tool_choice:auto + deferred discovery"};
+ currentRunInspector.skills=[];currentRunInspector.skillChain=[];currentRunInspector.mcp=[];
+ return{defs,skills:[],route:{...plan,route:"model-auto",budget:1,confidence:1},deferred:true};
 }
 async function askPermission(tool,args){if(tool.permission==="auto")return true;if(tool.permission==="off")return false;if(askResolver)resolvePendingPermission(false);return new Promise(res=>{askResolver=res;$("#askText").textContent=`${tool.description||tool.name}`;$("#askArgs").textContent=JSON.stringify(args,null,2);$("#askBox").classList.add("open")})}
 async function inferPublishedTargetFromHistory(){
@@ -643,20 +635,10 @@ async function buildSystem(userText="",chat=null,toolPlan=null){chat=chat||await
 async function addEvent(chat,name,status,preview=""){const last=chat.messages[chat.messages.length-1];if(last?.role==="tool_event"&&last.name===name&&!/تم|خطأ|done|error/i.test(last.status||"")&&/تم|خطأ|done|error/i.test(status||"")){last.status=status;last.preview=String(preview||last.preview||"").slice(0,600);last.time=Date.now()}else chat.messages.push({id:uid(),role:"tool_event",name,status,preview:String(preview||"").slice(0,600),time:Date.now()});chat.updated=Date.now();await idbPut("chats",chat);pushRunActivity(name,status,preview);const v=toolVisual(name);setActivity(v.activity,preview||`${v.label} • ${activityStatusLabel(status)}`)}
 async function runAgent(chat,userText){
   const mode=chat?.agentMode||state.settings.defaultAgentMode||"normal";
-  const directCode=directSingleFileCodeIntent(userText),searchIntent=detectSearchIntent(userText);
-  // Explicit/fresh/current-data requests search deterministically before the model turn.
-  // This avoids tool_choice=auto silently skipping a search the user clearly asked for.
-  let forcedWeb=null;
-  const canForceWeb=!directCode&&searchIntent.force&&state.settings.toolsEnabled!==false&&(state.toolPermissions.web_search||"ask")!=="off";
-  if(canForceWeb){
-    await addEvent(chat,"web_search","يعمل…",searchIntent.reason==="explicit"?"طلب بحث صريح — بنفذ البحث قبل صياغة الرد":"المعلومة متغيرة زمنيًا — بتحقق من الويب قبل الرد");
-    try{forcedWeb=await webSearch(searchIntent.query);await addEvent(chat,"web_search","تم",`تم جمع نتائج مباشرة من الويب • ${forcedWeb.sources?.length||0} مصدر`)}
-    catch(e){await addEvent(chat,"web_search","خطأ",e.message||"تعذر البحث");forcedWeb={error:e.message||String(e)}}
-  }
-  // Fast code requests bypass tool/skill catalog loading entirely so the model request can start immediately.
-  const toolPlan=directCode?{defs:[],skills:[],route:hybridRoutePlan(userText,mode)}:await toolCatalog(userText,mode);
-  // If deterministic search already ran, don't expose web_search again and risk duplicate latency/calls.
-  if(forcedWeb?.results)toolPlan.defs=toolPlan.defs.filter(t=>t.name!=="web_search");
+  // OpenAI-style model-owned routing: no deterministic web/tool execution before the model turn.
+  // The model sees only the deferred tool_search entry point and may answer directly or discover capabilities.
+  const directCode=null,forcedWeb=null;
+  const toolPlan=await toolCatalog(userText,mode);
   const defs=toolPlan.defs;
   // Direct single-file generation deliberately skips project scans, memory ranking and workspace mapping.
   // The user's latest request is enough context and this keeps time-to-first-token low.
@@ -664,6 +646,7 @@ async function runAgent(chat,userText){
   let system=directCode
     ? `${state.settings.systemPrompt}\n\nAGENT MODE: ${profile.label}\n${profile.prompt}${directCodeSystemHint(directCode)}`
     : await buildSystem(userText,chat,toolPlan);
+  system+=`\n\nMODEL-OWNED TOOL ROUTING (OpenAI-style):\n- tool_choice is AUTO. You decide whether any tool is needed; answer directly when no tool can improve the answer.\n- Only tool_search is loaded initially. If current/external information, project files, execution, memory, Skills, MCP, publishing, verification, or another capability may materially help, call tool_search with the capability you need.\n- tool_search dynamically loads only a small relevant subset of executable tools. After it returns, choose among those tools yourself. You may call tool_search again for a different capability later in the same run.\n- Never infer that a tool ran merely because it exists; use returned evidence before claiming success.\n- For information that may have changed, discover and use a live-information/search capability instead of relying on memory.\n- For a relevant Skill, tool_search returns Skill names and loads skill_read; read only the Skill you need.`;
   if(forcedWeb?.results)system+=webEvidenceSystemBlock(forcedWeb);
   const base=selectContextMessages(chat,system,defs);
   await addEvent(chat,"context_manager","تم",directCode?"مسار سريع: كتابة الكود مباشرة ثم حفظه تلقائيًا كـArtifact":contextSummary(chat,base,system,defs));
@@ -696,7 +679,13 @@ async function runAgent(chat,userText){
     await addEvent(chat,displayName,"يعمل…",resolved.alias?`حوّلت الاستدعاء /${shortArg(call.name,70)} تلقائيًا إلى قراءة Skill صحيحة`:toolStartPreview(tool,args));
     const toolStarted=performance.now();
     try{
-      if(cacheKey&&skillCache.has(cacheKey))result=skillCache.get(cacheKey);else{result=await executeTool(tool,args);if(cacheKey&&!result?.error)skillCache.set(cacheKey,result)}
+      if(tool.name==="tool_search"){
+        const found=await deferredToolCandidates(args.query||userText,args.maxResults);
+        for(const discovered of found.defs){if(!defs.some(x=>x.name===discovered.name))defs.push(discovered)}
+        if(found.skills.length&&!defs.some(x=>x.name==="skill_read")){const d=nativeDefs.skill_read;if((state.toolPermissions.skill_read||"auto")!=="off")defs.push({name:"skill_read",description:d.description,parameters:d.parameters,source:"native",permission:state.toolPermissions.skill_read||"auto",deferred:true,routeScore:80})}
+        currentRunInspector=currentRunInspector||{};currentRunInspector.deferredSearches=[...(currentRunInspector.deferredSearches||[]),{query:String(args.query||""),loaded:found.defs.map(x=>x.originalName||x.name),skills:found.skills.map(x=>x.name)}].slice(-8);
+        result={ok:true,query:String(args.query||""),loaded_tools:found.defs.map(x=>({name:x.name,displayName:x.originalName||x.name,source:x.source,description:x.description,permission:x.permission})),skills:found.skills.map(x=>({name:x.name,description:x.description})),instruction:"The listed tools are now loaded for the next model turn. Choose only what is actually needed; you may call tool_search again for another capability."};
+      }else if(cacheKey&&skillCache.has(cacheKey))result=skillCache.get(cacheKey);else{result=await executeTool(tool,args);if(cacheKey&&!result?.error)skillCache.set(cacheKey,result)}
       await recordToolStat(tool,!result?.error,performance.now()-toolStarted);
       mergeRunSources(result);
       if(result?.error)await addEvent(chat,displayName,"خطأ",toolDonePreview(tool,args,result));else await addEvent(chat,displayName,"تم",cacheKey&&skillCache.get(cacheKey)===result&&resolved.alias?`قرأت Skill /${shortArg(args.name,70)} بنجاح`:toolDonePreview(tool,args,result));
