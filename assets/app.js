@@ -359,11 +359,18 @@ async function deferredToolCandidates(query="",maxResults=8){
 async function toolCatalog(userText="",agentMode="normal"){
  const plan=hybridRoutePlan(userText,agentMode),defs=[];
  if(state.settings.toolsEnabled===false)return{defs,skills:[],route:plan,deferred:true};
- const d=nativeDefs.tool_search;
- defs.push({name:"tool_search",description:d.description,parameters:d.parameters,source:"native",permission:"auto",deferred:false,routeScore:100});
- currentRunInspector=currentRunInspector||{};currentRunInspector.router={route:"model-auto",confidence:1,budget:1,selected:[{name:"tool_search",score:100,source:"native"}],strategy:"tool_choice:auto + deferred discovery"};
+ // Keep a tiny, high-value core catalog visible on every turn. This preserves true
+ // model-owned tool_choice:auto behavior even on providers that are less reliable at
+ // recursively discovering a search tool through another tool. The long tail remains deferred.
+ for(const name of ["web_search","tool_search"]){
+  const d=nativeDefs[name];if(!d)continue;
+  const permission=name==="tool_search"?"auto":(state.toolPermissions[name]||"off");
+  if(permission==="off")continue;
+  defs.push({name,description:d.description,parameters:d.parameters,source:"native",permission,deferred:false,routeScore:name==="web_search"?110:100});
+ }
+ currentRunInspector=currentRunInspector||{};currentRunInspector.router={route:"model-auto",confidence:1,budget:defs.length,selected:defs.map(x=>({name:x.name,score:x.routeScore,source:x.source})),strategy:"tool_choice:auto + core web + deferred discovery"};
  currentRunInspector.skills=[];currentRunInspector.skillChain=[];currentRunInspector.mcp=[];
- return{defs,skills:[],route:{...plan,route:"model-auto",budget:1,confidence:1},deferred:true};
+ return{defs,skills:[],route:{...plan,route:"model-auto",budget:defs.length,confidence:1},deferred:true};
 }
 async function askPermission(tool,args){if(tool.permission==="auto")return true;if(tool.permission==="off")return false;if(askResolver)resolvePendingPermission(false);return new Promise(res=>{askResolver=res;$("#askText").textContent=`${tool.description||tool.name}`;$("#askArgs").textContent=JSON.stringify(args,null,2);$("#askBox").classList.add("open")})}
 async function inferPublishedTargetFromHistory(){
@@ -646,7 +653,7 @@ async function runAgent(chat,userText){
   let system=directCode
     ? `${state.settings.systemPrompt}\n\nAGENT MODE: ${profile.label}\n${profile.prompt}${directCodeSystemHint(directCode)}`
     : await buildSystem(userText,chat,toolPlan);
-  system+=`\n\nMODEL-OWNED TOOL ROUTING (OpenAI-style):\n- tool_choice is AUTO. You decide whether any tool is needed; answer directly when no tool can improve the answer.\n- Only tool_search is loaded initially. If current/external information, project files, execution, memory, Skills, MCP, publishing, verification, or another capability may materially help, call tool_search with the capability you need.\n- tool_search dynamically loads only a small relevant subset of executable tools. After it returns, choose among those tools yourself. You may call tool_search again for a different capability later in the same run.\n- Never infer that a tool ran merely because it exists; use returned evidence before claiming success.\n- For information that may have changed, discover and use a live-information/search capability instead of relying on memory.\n- For a relevant Skill, tool_search returns Skill names and loads skill_read; read only the Skill you need.`;
+  system+=`\n\nMODEL-OWNED TOOL ROUTING (OpenAI-style):\n- tool_choice is AUTO. You decide whether any tool is needed; answer directly when no tool can improve the answer.\n- A tiny core catalog is loaded initially: web_search (when enabled) plus tool_search. The long-tail catalog remains deferred.\n- Use web_search directly whenever the answer depends on live/current/external facts, recent news, leaks/rumors, current product status, prices, schedules, leadership, software versions, or verification that may have changed.\n- Never say that live web access is unavailable when web_search is present in your tools. If current information is required, call it before answering.\n- If project files, execution, memory, Skills, MCP, publishing, verification, or another capability may materially help and the needed tool is not loaded, call tool_search with the capability you need.\n- tool_search dynamically loads only a small relevant subset of executable tools. After it returns, choose among those tools yourself. You may call tool_search again for a different capability later in the same run.\n- Never infer that a tool ran merely because it exists; use returned evidence before claiming success.\n- For a relevant Skill, tool_search returns Skill names and loads skill_read; read only the Skill you need.`;
   if(forcedWeb?.results)system+=webEvidenceSystemBlock(forcedWeb);
   const base=selectContextMessages(chat,system,defs);
   await addEvent(chat,"context_manager","تم",directCode?"مسار سريع: كتابة الكود مباشرة ثم حفظه تلقائيًا كـArtifact":contextSummary(chat,base,system,defs));
