@@ -1,7 +1,17 @@
-import { allowMethod, bodyJson, env, json, secureEqual, rateLimit } from './_utils.js';
+/**
+ * GitHub + Vercel publisher route.
+ *
+ * MAINTAINER / AI RULES:
+ * - This file is one Vercel Serverless Function; keep reusable helpers in /lib, never new /api helpers.
+ * - Preserve PUBLISH_SECRET auth, path validation, payload limits, exact-snapshot publishing, and safe errors.
+ * - Publishing changes must support both Git-linked and direct Vercel deployments.
+ * - Never copy arbitrary process.env secrets into a user's published project.
+ */
+
+import { allowMethod, bodyJson, env, json, secureEqual, rateLimit } from '../lib/utils.js';
+import { VERCEL_API, vercelApiFetch, vercelHeaders, vercelTeamQuery } from '../lib/vercel-api.js';
 
 const GH_API = 'https://api.github.com';
-const VERCEL_API = 'https://api.vercel.com';
 const GH_VERSION = '2026-03-10';
 
 function cleanName(value, fallback='aiway-site') {
@@ -28,8 +38,6 @@ async function apiFetch(url, options={}, label='API') {
   return data;
 }
 function githubHeaders(token){return{'Accept':'application/vnd.github+json','Authorization':`Bearer ${token}`,'X-GitHub-Api-Version':GH_VERSION,'Content-Type':'application/json'}}
-function vercelHeaders(token){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}}
-function teamQuery(teamId){return teamId?`?teamId=${encodeURIComponent(teamId)}`:''}
 
 async function getGitHubUser(token){return apiFetch(`${GH_API}/user`,{headers:githubHeaders(token)},'GitHub')}
 async function getGitHubRepo(token, owner, name){
@@ -59,16 +67,16 @@ async function syncGitHubSnapshot(token,owner,repo,files,branch='main'){
 }
 
 async function getVercelProject(token,teamId,name){
-  try{return await apiFetch(`${VERCEL_API}/v9/projects/${encodeURIComponent(name)}${teamQuery(teamId)}`,{headers:vercelHeaders(token)},'Vercel project')}
+  try{return await vercelApiFetch(`${VERCEL_API}/v9/projects/${encodeURIComponent(name)}${vercelTeamQuery(teamId)}`,{headers:vercelHeaders(token)},'Vercel project')}
   catch(e){if(e.status===404)return null;throw e}
 }
 async function createVercelProject(token,teamId,{name,fullRepo}){
   // Try to connect GitHub during project creation. If the Vercel GitHub App cannot
   // see the repo, create a normal project and direct-deploy instead.
   try{
-    return{project:await apiFetch(`${VERCEL_API}/v10/projects${teamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({name,gitRepository:{type:'github',repo:fullRepo}})},'Vercel create project'),gitLinked:true};
+    return{project:await vercelApiFetch(`${VERCEL_API}/v10/projects${vercelTeamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({name,gitRepository:{type:'github',repo:fullRepo}})},'Vercel create project'),gitLinked:true};
   }catch(e){
-    const project=await apiFetch(`${VERCEL_API}/v10/projects${teamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({name})},'Vercel create project');
+    const project=await vercelApiFetch(`${VERCEL_API}/v10/projects${vercelTeamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({name})},'Vercel create project');
     return{project,gitLinked:false,gitLinkError:e.message};
   }
 }
@@ -82,8 +90,8 @@ async function createProjectEnv(token,teamId,projectId,names=[],supplied={}){
   const secretMap=supplied&&typeof supplied==='object'&&!Array.isArray(supplied)?supplied:{};
   const envs=unique.map(key=>{const value=typeof secretMap[key]==='string'?secretMap[key]:undefined;return{key,value,type:'sensitive',target:['production','preview']}}).filter(x=>typeof x.value==='string'&&x.value.length);
   if(!envs.length)return{created:[],missing:unique};
-  const suffix=teamQuery(teamId),url=`${VERCEL_API}/v10/projects/${encodeURIComponent(projectId)}/env${suffix}${suffix?'&':'?'}upsert=true`;
-  await apiFetch(url,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify(envs)},'Vercel environment variables');
+  const suffix=vercelTeamQuery(teamId),url=`${VERCEL_API}/v10/projects/${encodeURIComponent(projectId)}/env${suffix}${suffix?'&':'?'}upsert=true`;
+  await vercelApiFetch(url,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify(envs)},'Vercel environment variables');
   return{created:envs.map(x=>x.key),missing:unique.filter(k=>!envs.some(x=>x.key===k))};
 }
 
@@ -100,7 +108,7 @@ function staticProjectSettings(){
   };
 }
 async function createGitDeployment(token,teamId,{project,repoId,ref='main'}){
-  return apiFetch(`${VERCEL_API}/v13/deployments${teamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({
+  return vercelApiFetch(`${VERCEL_API}/v13/deployments${vercelTeamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({
     name:project.name,project:project.id,target:'production',
     gitSource:{type:'github',ref,repoId},withLatestCommit:true,
     projectSettings:staticProjectSettings()
@@ -108,7 +116,7 @@ async function createGitDeployment(token,teamId,{project,repoId,ref='main'}){
 }
 async function createDirectDeployment(token,teamId,{project,files}){
   const inlineFiles=files.map(file=>({file:safePath(file.path),data:Buffer.from(String(file.content??''),'utf8').toString('base64'),encoding:'base64'}));
-  return apiFetch(`${VERCEL_API}/v13/deployments${teamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({
+  return vercelApiFetch(`${VERCEL_API}/v13/deployments${vercelTeamQuery(teamId)}`,{method:'POST',headers:vercelHeaders(token),body:JSON.stringify({
     name:project.name,project:project.id,target:'production',files:inlineFiles,
     projectSettings:staticProjectSettings()
   })},'Vercel direct deployment');

@@ -1,5 +1,18 @@
-import { allowMethod, bodyJson, env, json, pipeFetch, requireAppAccess, rateLimit, requestAbortSignal } from './_utils.js';
-import { proxyOpenCode, proxyHermesRun } from './_provider_adapters.js';
+/**
+ * AI provider proxy route.
+ *
+ * Streams requests to supported model providers. Preserve provider isolation, cancellation, secret handling, and protocol-specific payload behavior.
+ *
+ * MAINTAINER / AI CONTRACT:
+ * - Read AGENTS.md and docs/AI-DEVELOPER-CONTRACT.md before changing behavior.
+ * - Preserve existing features unless the request explicitly removes or changes them.
+ * - Keep the Vercel /api JavaScript-file budget at 12 or fewer; shared helpers belong in /lib.
+ * - New features must integrate with existing security, streaming, permissions, responsive UI, and tests.
+ * - Run npm test before considering a change complete.
+ */
+
+import { allowMethod, bodyJson, env, json, pipeFetch, requireAppAccess, rateLimit, requestAbortSignal } from '../lib/utils.js';
+import { proxyOpenCode, proxyHermesRun } from '../lib/provider-adapters.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const BAI_URL = 'https://api.b.ai/v1/chat/completions';

@@ -1,6 +1,19 @@
+/**
+ * Agent gateway route.
+ *
+ * Handles remote MCP/browser access and persistent Vercel Sandbox operations. Security-sensitive: preserve SSRF blocking, size limits, permissions, and bounded execution.
+ *
+ * MAINTAINER / AI CONTRACT:
+ * - Read AGENTS.md and docs/AI-DEVELOPER-CONTRACT.md before changing behavior.
+ * - Preserve existing features unless the request explicitly removes or changes them.
+ * - Keep the Vercel /api JavaScript-file budget at 12 or fewer; shared helpers belong in /lib.
+ * - New features must integrate with existing security, streaming, permissions, responsive UI, and tests.
+ * - Run npm test before considering a change complete.
+ */
+
 import dns from 'node:dns/promises';
 import net from 'node:net';
-import { allowMethod, bodyJson, json, rateLimit, requireAppAccess, requestAbortSignal } from './_utils.js';
+import { allowMethod, bodyJson, json, rateLimit, requireAppAccess, requestAbortSignal } from '../lib/utils.js';
 
 const MAX_RESPONSE_BYTES = 1_250_000;
 

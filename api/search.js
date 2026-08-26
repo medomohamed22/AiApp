@@ -1,4 +1,17 @@
-import { allowMethod, env, json, requireAppAccess, rateLimit } from './_utils.js';
+/**
+ * Exa web-search proxy route.
+ *
+ * Protects the Exa key and returns bounded normalized search results. Preserve auth, rate limits, cancellation, and safe result shaping.
+ *
+ * MAINTAINER / AI CONTRACT:
+ * - Read AGENTS.md and docs/AI-DEVELOPER-CONTRACT.md before changing behavior.
+ * - Preserve existing features unless the request explicitly removes or changes them.
+ * - Keep the Vercel /api JavaScript-file budget at 12 or fewer; shared helpers belong in /lib.
+ * - New features must integrate with existing security, streaming, permissions, responsive UI, and tests.
+ * - Run npm test before considering a change complete.
+ */
+
+import { allowMethod, env, json, requireAppAccess, rateLimit } from '../lib/utils.js';
 
 function exaKey(req) {
   const fromHeader = String(req.headers?.['x-aiway-exa-key'] || '').trim();

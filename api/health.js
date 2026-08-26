@@ -1,4 +1,17 @@
-import { allowMethod, json, requireAppAccess, rateLimit } from './_utils.js';
+/**
+ * Server capability health route.
+ *
+ * Reports configured capabilities as booleans only. Never expose secret values or sensitive provider details.
+ *
+ * MAINTAINER / AI CONTRACT:
+ * - Read AGENTS.md and docs/AI-DEVELOPER-CONTRACT.md before changing behavior.
+ * - Preserve existing features unless the request explicitly removes or changes them.
+ * - Keep the Vercel /api JavaScript-file budget at 12 or fewer; shared helpers belong in /lib.
+ * - New features must integrate with existing security, streaming, permissions, responsive UI, and tests.
+ * - Run npm test before considering a change complete.
+ */
+
+import { allowMethod, json, requireAppAccess, rateLimit } from '../lib/utils.js';
 export default function handler(req, res) {
   if (!allowMethod(req, res, ['GET'])) return;
   if (!requireAppAccess(req, res)) return;

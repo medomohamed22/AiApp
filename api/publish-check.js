@@ -1,4 +1,14 @@
-import { allowMethod, env, json, secureEqual, rateLimit } from './_utils.js';
+/**
+ * Publishing credential preflight route.
+ *
+ * MAINTAINER / AI RULES:
+ * - Keep this route lightweight: it validates GitHub/Vercel credentials without exposing tokens.
+ * - Do not add helper files under /api; shared Vercel helpers belong in /lib/vercel-api.js.
+ * - Preserve PUBLISH_SECRET authorization and no-store behavior.
+ */
+
+import { allowMethod, env, json, secureEqual, rateLimit } from '../lib/utils.js';
+import { VERCEL_API, vercelHeaders, vercelTeamQuery } from '../lib/vercel-api.js';
 
 export default async function handler(req, res) {
   if (!allowMethod(req, res, ['POST'])) return;
@@ -20,8 +30,8 @@ export default async function handler(req, res) {
           'X-GitHub-Api-Version': '2026-03-10'
         }
       }),
-      fetch(`https://api.vercel.com/v2/user${teamId ? `?teamId=${encodeURIComponent(teamId)}` : ''}`, {
-        headers: { 'Authorization': `Bearer ${vercelToken}` }
+      fetch(`${VERCEL_API}/v2/user${vercelTeamQuery(teamId)}`, {
+        headers: vercelHeaders(vercelToken)
       })
     ]);
 

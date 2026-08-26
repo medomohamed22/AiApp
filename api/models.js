@@ -1,5 +1,18 @@
-import { allowMethod, env, json, fetchOpenCode, requireAppAccess, rateLimit } from './_utils.js';
-import { openCodeProtocol, hermesCapabilities } from './_provider_adapters.js';
+/**
+ * Provider model discovery route.
+ *
+ * Normalizes model catalogs/capabilities. Provider limits are informational and must never overwrite user token/context settings.
+ *
+ * MAINTAINER / AI CONTRACT:
+ * - Read AGENTS.md and docs/AI-DEVELOPER-CONTRACT.md before changing behavior.
+ * - Preserve existing features unless the request explicitly removes or changes them.
+ * - Keep the Vercel /api JavaScript-file budget at 12 or fewer; shared helpers belong in /lib.
+ * - New features must integrate with existing security, streaming, permissions, responsive UI, and tests.
+ * - Run npm test before considering a change complete.
+ */
+
+import { allowMethod, env, json, fetchOpenCode, requireAppAccess, rateLimit } from '../lib/utils.js';
+import { openCodeProtocol, hermesCapabilities } from '../lib/provider-adapters.js';
 
 function pricingNumber(value) {
   if (value === null || value === undefined || value === '') return null;
