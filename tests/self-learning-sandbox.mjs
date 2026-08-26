@@ -1,3 +1,9 @@
+/**
+ * Regression guard for AiWay.
+ * Keep this test focused on externally important behavior/invariants, not implementation trivia.
+ * When intentionally changing a guarded behavior, update the implementation and this test together.
+ */
+
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const app=fs.readFileSync('assets/app.js','utf8');

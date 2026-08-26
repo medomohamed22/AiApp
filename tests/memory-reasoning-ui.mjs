@@ -1,3 +1,9 @@
+/**
+ * Regression guard for AiWay.
+ * Keep this test focused on externally important behavior/invariants, not implementation trivia.
+ * When intentionally changing a guarded behavior, update the implementation and this test together.
+ */
+
 import fs from 'node:fs';
 
 const html=fs.readFileSync('index.html','utf8');
@@ -8,9 +14,9 @@ if (!js.includes('state.settings.memoryEnabled=true')) throw new Error('memory i
 for (const rule of ['state.toolPermissions.memory_search="auto"','state.toolPermissions.session_search="auto"','state.toolPermissions.memory_save="auto"']) {
   if (!js.includes(rule)) throw new Error(`missing background memory rule: ${rule}`);
 }
-if (!js.includes('if(memorySearch)allowed.add("memory_search")')) throw new Error('memory_search is not intent-routed');
-if (!js.includes('if(sessionSearch)allowed.add("session_search")')) throw new Error('session_search is not intent-routed');
-if (!js.includes('if(memorySave)allowed.add("memory_save")')) throw new Error('memory_save is not intent-routed');
+if (!js.includes("add(name==='memory_search'&&s.memorySearch,100)")) throw new Error('memory_search is not score-routed');
+if (!js.includes("add(name==='session_search'&&s.sessionSearch,100)")) throw new Error('session_search is not score-routed');
+if (!js.includes("add(name==='memory_save'&&s.memorySave,100)")) throw new Error('memory_save is not score-routed');
 if (!js.includes('aiway_reasoning_level:reasoningLevel()')) throw new Error('reasoning level is not read per request');
 if (!js.includes('state.settings.reasoningLevel=next')) throw new Error('reasoning selector does not update live settings');
 if (!js.includes('يطبق من الرسالة التالية في نفس المحادثة')) throw new Error('same-chat reasoning feedback missing');

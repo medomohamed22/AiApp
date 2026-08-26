@@ -1,3 +1,9 @@
+/**
+ * Regression guard for AiWay.
+ * Keep this test focused on externally important behavior/invariants, not implementation trivia.
+ * When intentionally changing a guarded behavior, update the implementation and this test together.
+ */
+
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import agentHandler from '../api/agent.js';
@@ -18,6 +24,13 @@ for (const id of ['orchestration','verifierEnabled','subagentsEnabled','evalsLis
 const apiFiles = fs.readdirSync('api').filter(x=>x.endsWith('.js'));
 assert.ok(apiFiles.length <= 12, `Vercel api file budget exceeded: ${apiFiles.length}`);
 assert.ok(apiFiles.includes('agent.js'), 'agent gateway missing');
+for (const file of apiFiles) {
+  const source = fs.readFileSync(`api/${file}`, 'utf8');
+  assert.match(source, /export\s+default\s+/, `api/${file} must be a real Vercel route handler, not a helper module`);
+}
+assert.ok(fs.existsSync('lib/utils.js'), 'shared server helpers must live outside /api');
+assert.ok(fs.existsSync('lib/provider-adapters.js'), 'provider adapters must live outside /api');
+assert.equal(pkg.engines?.node, '24.x', 'Vercel Node.js runtime must be pinned to 24.x');
 const vercel = fs.readFileSync('vercel.json','utf8');
 assert.ok(vercel.includes("worker-src 'self' blob:"), 'CSP must allow isolated blob workers for code_execute');
 

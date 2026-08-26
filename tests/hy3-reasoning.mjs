@@ -1,4 +1,10 @@
-import { sanitizeOpenAIChatPayload } from '../api/_provider_adapters.js';
+/**
+ * Regression guard for AiWay.
+ * Keep this test focused on externally important behavior/invariants, not implementation trivia.
+ * When intentionally changing a guarded behavior, update the implementation and this test together.
+ */
+
+import { sanitizeOpenAIChatPayload } from '../lib/provider-adapters.js';
 
 for (const [level, expected] of [
   ['off', 'no_think'],

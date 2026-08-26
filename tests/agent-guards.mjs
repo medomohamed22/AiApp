@@ -1,6 +1,12 @@
+/**
+ * Regression guard for AiWay.
+ * Keep this test focused on externally important behavior/invariants, not implementation trivia.
+ * When intentionally changing a guarded behavior, update the implementation and this test together.
+ */
+
 import fs from 'node:fs';
 const app=fs.readFileSync(new URL('../assets/app.js', import.meta.url),'utf8');
-const adapter=fs.readFileSync(new URL('../api/_provider_adapters.js', import.meta.url),'utf8');
+const adapter=fs.readFileSync(new URL('../lib/provider-adapters.js', import.meta.url),'utf8');
 const required=[
   ['skill alias normalization', /function normalizeSkillName/],
   ['hallucinated skill resolver', /async function resolveAgentTool/],
@@ -15,7 +21,7 @@ if(!/callNames=new Map\(\)/.test(adapter)) throw new Error('Gemini tool result n
 if(!/responseFinalText/.test(adapter)) throw new Error('Responses final text fallback missing');
 console.log('agent recovery guards ok');
 
-const mod=await import('../api/_provider_adapters.js');
+const mod=await import('../lib/provider-adapters.js');
 const sanitized=mod.sanitizeOpenAIChatPayload({messages:[{role:'assistant',tool_calls:[{id:'c1',type:'function',function:{name:'artifact_read',arguments:'{"name":"index.html"'}}]},{role:'tool',tool_call_id:'c1',content:{ok:false,error:'bad'}}]});
 if(sanitized.messages[0].tool_calls[0].function.arguments!=='{}') throw new Error('malformed streamed tool arguments were not neutralized');
 if(typeof sanitized.messages[1].content!=='string') throw new Error('tool result content was not normalized to string');

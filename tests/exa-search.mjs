@@ -1,3 +1,9 @@
+/**
+ * Regression guard for AiWay.
+ * Keep this test focused on externally important behavior/invariants, not implementation trivia.
+ * When intentionally changing a guarded behavior, update the implementation and this test together.
+ */
+
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';

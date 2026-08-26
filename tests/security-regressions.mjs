@@ -1,7 +1,13 @@
+/**
+ * Regression guard for AiWay.
+ * Keep this test focused on externally important behavior/invariants, not implementation trivia.
+ * When intentionally changing a guarded behavior, update the implementation and this test together.
+ */
+
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
-import { bodyJson, requestAbortSignal } from '../api/_utils.js';
+import { bodyJson, requestAbortSignal } from '../lib/utils.js';
 
 // Parsed request bodies must still obey the configured size limit.
 await assert.rejects(
@@ -23,7 +29,7 @@ assert.equal(signal.aborted, true);
 const publish = fs.readFileSync(new URL('../api/publish.js', import.meta.url), 'utf8');
 const app = fs.readFileSync(new URL('../assets/app.js', import.meta.url), 'utf8');
 const ai = fs.readFileSync(new URL('../api/ai.js', import.meta.url), 'utf8');
-const adapters = fs.readFileSync(new URL('../api/_provider_adapters.js', import.meta.url), 'utf8');
+const adapters = fs.readFileSync(new URL('../lib/provider-adapters.js', import.meta.url), 'utf8');
 
 // Publishing must never copy server process.env values into user deployments.
 assert.doesNotMatch(publish, /const\s+fallback\s*=\s*process\.env\s*\[/);
