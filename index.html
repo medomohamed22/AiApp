@@ -29,6 +29,7 @@
           <button class="navitem subnav" data-open="tools"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 6.2a4 4 0 0 0-5.1 5.1L4.2 16.2a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4 4 0 0 0 5.1-5.1l-2.2 2.2-2.5-.5-.5-2.5 2.9-1.5Z"/><path d="m14.8 14.8 4.9 4.9"/><path d="m17.2 16.2 1.4-1.4 2.2 2.2-1.4 1.4"/></svg><span>الأدوات و MCP</span> <span class="count" id="toolCount">0</span></button>
           <button class="navitem subnav" data-open="memory"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 4.7A3.2 3.2 0 0 0 4.8 8a3.5 3.5 0 0 0 .4 6.7 3.3 3.3 0 0 0 4 4.6c1.1-.2 2-.8 2.8-1.7V6.4a4 4 0 0 0-2.8-1.7Z"/><path d="M14.8 4.7A3.2 3.2 0 0 1 19.2 8a3.5 3.5 0 0 1-.4 6.7 3.3 3.3 0 0 1-4 4.6c-1.1-.2-2-.8-2.8-1.7V6.4a4 4 0 0 1 2.8-1.7Z"/><path d="M8 9.5c1.5 0 2.6.7 4 2M16 9.5c-1.5 0-2.6.7-4 2M8.2 15c1.2-.1 2.2.3 3.8 1.5M15.8 15c-1.2-.1-2.2.3-3.8 1.5"/></svg><span>الذاكرة</span></button>
           <button class="navitem subnav" data-open="timeline"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.2-5 4.1 10 2.3-5H21"/></svg><span>Activity</span></button>
+          <button class="navitem subnav" data-open="usage"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg><span>Usage & Cost</span></button>
         </div>
       </div>
       <div class="section-label">المحادثات</div>
@@ -49,7 +50,7 @@
       </select>
       <button class="project-pill" id="projectPill" title="تغيير المشروع">Default</button>
       <div class="provider-pill"><i></i><span id="providerPill">Gemini</span></div>
-      <button class="btn icon" id="quickTools" title="لوحة الأوامر — Ctrl/⌘ K">⌘</button>
+      <button class="btn icon" id="quickTools" title="مكتبة البرومبتات — Ctrl/⌘ K" aria-label="مكتبة البرومبتات">⌘</button>
     </header>
     <section class="messages" id="messages"><div class="messages-inner" id="messagesInner"></div></section><button class="scroll-bottom" id="scrollBottomBtn" title="النزول إلى آخر الرد" aria-label="النزول إلى آخر الرد"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/><path d="M12 4v11"/></svg></button>
     <div class="composer-wrap">
@@ -227,11 +228,19 @@
 </div></div>
 
 
+<div class="backdrop" id="usageSheet"><div class="sheet usage-sheet">
+ <div class="sheet-head"><div class="grow"><h2>Usage Dashboard</h2><p class="sub">إحصائيات محلية لكل طلب AI. التوكنز تكون فعلية عندما يرجعها المزوّد، وإلا تظهر كتقدير محلي.</p></div><button class="btn icon close-sheet">✕</button></div>
+ <div class="toolbar"><select class="field" id="usageRange" style="max-width:150px"><option value="7">آخر 7 أيام</option><option value="30" selected>آخر 30 يوم</option><option value="90">آخر 90 يوم</option><option value="0">كل الوقت</option></select><button class="btn" id="refreshUsageBtn">تحديث</button><button class="btn danger" id="clearUsageBtn">مسح السجل</button></div>
+ <div class="stats usage-stats"><div class="stat"><b id="usageRequests">0</b><small>طلبات AI</small></div><div class="stat"><b id="usageInput">0</b><small>Input tokens</small></div><div class="stat"><b id="usageOutput">0</b><small>Output tokens</small></div><div class="stat"><b id="usageCost">—</b><small>تكلفة معروفة</small></div></div>
+ <div class="usage-grid"><div class="card"><h3>حسب المزوّد</h3><div id="usageProviders"></div></div><div class="card"><h3>حسب الموديل</h3><div id="usageModels"></div></div></div>
+ <div class="card"><div class="row"><div class="grow"><h3 style="margin:0">آخر الطلبات</h3><div class="hint">السعر يظهر فقط لو Model Catalog يوفّر Pricing؛ غير ذلك يظهر — بدل رقم مخمّن.</div></div></div><div id="usageRecent" class="usage-recent"></div></div>
+</div></div>
+
 <div class="command-backdrop" id="commandBackdrop" aria-hidden="true">
-  <div class="command-palette" id="commandPalette" role="dialog" aria-modal="true" aria-label="لوحة أوامر AiWay">
+  <div class="command-palette" id="commandPalette" role="dialog" aria-modal="true" aria-label="مكتبة البرومبتات وأوامر AiWay">
     <div class="command-search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
-      <input id="commandInput" autocomplete="off" placeholder="ابحث عن أمر، محادثة، Skill أو إعداد…" />
+      <input id="commandInput" autocomplete="off" placeholder="ابحث في البرومبتات الجاهزة أو أوامر AiWay…" />
       <span class="command-kbd">Esc</span>
     </div>
     <div class="command-list" id="commandList"></div>
