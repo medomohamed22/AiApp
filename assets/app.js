@@ -1,3 +1,16 @@
+/**
+ * AiWay browser runtime.
+ *
+ * Owns local UI state, IndexedDB, chats, tools, Skills, MCP, agent orchestration, artifacts, memory, streaming, and publishing UI. Keep secrets out of this file and preserve backward-compatible local state.
+ *
+ * MAINTAINER / AI CONTRACT:
+ * - Read AGENTS.md and docs/AI-DEVELOPER-CONTRACT.md before changing behavior.
+ * - Preserve existing features unless the request explicitly removes or changes them.
+ * - Keep the Vercel /api JavaScript-file budget at 12 or fewer; shared helpers belong in /lib.
+ * - New features must integrate with existing security, streaming, permissions, responsive UI, and tests.
+ * - Run npm test before considering a change complete.
+ */
+
 (()=>{"use strict";
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], uid=()=>crypto.randomUUID?.()||Date.now()+"-"+Math.random().toString(16).slice(2);
 const DB_NAME="hermes-lite-2026", DB_VERSION=5;

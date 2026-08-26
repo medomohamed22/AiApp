@@ -1,3 +1,12 @@
+/*!
+ * AiWay application styles.
+ * MAINTAINER / AI CONTRACT:
+ * - Preserve RTL, desktop/mobile behavior, keyboard focus, and touch usability.
+ * - Prefer extending existing component tokens/classes over adding duplicate visual systems.
+ * - Keep responsive rules intentional and test critical widths after UI changes.
+ * - Read AGENTS.md and docs/AI-DEVELOPER-CONTRACT.md before structural changes.
+ */
+
 :root{
   color-scheme:light;
   --bg:#f8f7fb;--surface:#ffffffcc;--surface-solid:#fff;--surface-2:#f2eff8;--surface-3:#ebe6f4;
