@@ -787,3 +787,25 @@ body[data-agent-state="thinking"] .composer,body[data-agent-state="searching"] .
 @media(max-width:380px){
   .reasoning-menu{inset-inline:8px!important;bottom:calc(122px + env(safe-area-inset-bottom))!important}
 }
+
+/* === ChatGPT-style reasoning control: AI owns tools/search; user only controls thinking effort === */
+.composer-toolbar{display:none!important}
+.composer-reasoning{position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 44px;z-index:48}
+.composer-reasoning .reasoning-btn{width:44px;height:44px;min-width:44px;border:1px solid #ded9e4;border-radius:50%;background:#fff;color:#222;display:grid;place-items:center;padding:0;cursor:pointer;box-shadow:none;transition:background .16s,border-color .16s,transform .12s;color .16s}
+.composer-reasoning .reasoning-btn:hover{background:#f7f7f8;border-color:#d1ccd8}
+.composer-reasoning .reasoning-btn:active{transform:scale(.95)}
+.composer-reasoning .reasoning-btn.on{background:#fff;color:#111;border-color:#c9c3d0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.025)}
+.reasoning-gauge{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.composer-reasoning .reasoning-menu{position:absolute;display:none;bottom:calc(100% + 12px);inset-inline-end:-8px;width:min(310px,calc(100vw - 24px));padding:8px;background:#fff;border:1px solid #e1dde6;border-radius:20px;box-shadow:0 18px 56px rgba(0,0,0,.14);z-index:90;transform-origin:bottom right}
+.composer-reasoning.open .reasoning-menu{display:block;animation:reasoningMenuIn .14s ease-out both}
+.composer-reasoning .reasoning-menu-title{padding:9px 11px 7px;font-size:12px;font-weight:800;color:#6f6876;text-align:right}
+.composer-reasoning .reasoning-menu button{width:100%;border:0;background:transparent;color:var(--ink);border-radius:13px;padding:10px 11px;text-align:right;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;font:inherit}
+.composer-reasoning .reasoning-menu button:hover,.composer-reasoning .reasoning-menu button.active{background:#f3f3f4;color:var(--ink)}
+.composer-reasoning .reasoning-menu button span{font-size:13px;font-weight:800}
+.composer-reasoning .reasoning-menu button small{display:block!important;grid-column:1/-1;color:#8a848d;font-size:10px;line-height:1.45}
+.composer-reasoning .reasoning-menu button.active::after{content:"✓";grid-column:2;grid-row:1;color:#111;font-size:12px;font-weight:900}
+body[data-theme="midnight"] .composer-reasoning .reasoning-btn{background:#201d25;border-color:#423d48;color:#f4effc}
+body[data-theme="midnight"] .composer-reasoning .reasoning-menu{background:#201d25;border-color:#3b3542}
+body[data-theme="midnight"] .composer-reasoning .reasoning-menu button:hover,body[data-theme="midnight"] .composer-reasoning .reasoning-menu button.active{background:#302b35;color:#fff}
+@media(max-width:620px){.composer-wrap{gap:0}.composer-reasoning{flex-basis:42px}.composer-reasoning .reasoning-btn{width:42px;height:42px;min-width:42px}.reasoning-gauge{width:24px;height:24px}.composer-reasoning .reasoning-menu{position:fixed;left:12px;right:12px;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 84px);width:auto}}
