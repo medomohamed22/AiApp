@@ -21,7 +21,7 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 function normalizeReasoningLevel(value) {
   const level = String(value || 'off').toLowerCase();
-  return ['off', 'low', 'medium', 'high'].includes(level) ? level : 'off';
+  return ['off', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off';
 }
 
 function applyOpenRouterReasoning(payload = {}) {
@@ -44,11 +44,11 @@ function applyGeminiReasoning(payload = {}, model = '') {
     if (level === 'off') {
       if (!id.includes('pro')) next.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     } else {
-      const budgets = { low: 1024, medium: 8192, high: 24576 };
+      const budgets = { low: 1024, medium: 8192, high: 24576, xhigh: 32768 };
       next.generationConfig.thinkingConfig = { thinkingBudget: budgets[level] };
     }
   } else if (/^gemini-(?:[3-9]|1\d)/.test(id)) {
-    const thinkingLevel = level === 'off' ? (id.includes('pro') ? 'LOW' : 'MINIMAL') : level.toUpperCase();
+    const thinkingLevel = level === 'off' ? (id.includes('pro') ? 'LOW' : 'MINIMAL') : (level === 'xhigh' ? 'HIGH' : level.toUpperCase());
     next.generationConfig.thinkingConfig = { thinkingLevel };
   }
   return next;
