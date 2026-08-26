@@ -161,16 +161,11 @@ async function renderMessages({focusMessageId=null}={}){
  const frag=document.createDocumentFragment(),hydrate=[];
  for(const m of c.messages){if(m.role==="tool_event")continue;const el=document.createElement("div");el.className=`msg ${m.role}${m.pinned?" pinned":""}`;el.dataset.messageId=m.id;const att=(m.attachments||[]).length?`<div class="attachment-summary">${(m.attachments||[]).map(a=>`<span class="attachment-mini">${a.kind==="image"?"🖼️":a.kind==="pdf"?"📄":a.kind==="project"?"🗜️":"📎"} ${esc(a.name)}</span>`).join("")}</div>`:"";el.innerHTML=`<div class="avatar">${m.role==="user"?"أ":"✦"}</div><div class="bubble"><div class="meta">${m.role==="user"?"أنت":"AiWay"} • ${new Date(m.time||Date.now()).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"})}</div>${m.role==="assistant"&&m.activityTrace?.length?responseActivityHtml(m.activityTrace):""}<div class="msgtext" data-message-text="${m.id}">${renderMessageText(m)}</div>${att}<div class="message-bottom"><div class="message-actions"><button class="mini-action" data-copymsg="${m.id}">نسخ الرد</button><button class="mini-action" data-branchmsg="${m.id}">↗ تفرع</button><button class="mini-action" data-pinmsg="${m.id}">${m.pinned?"★ مثبت":"☆ تثبيت"}</button></div>${responseFooter(m)}</div></div>`;frag.appendChild(el);hydrate.push([el,m])}
  box.appendChild(frag);for(const [el,m] of hydrate)hydrateInlineArtifact(el,m);
- // Replacing the message DOM temporarily collapses the scroll container. Explicitly anchor
- // a newly-sent user message so browsers/mobile WebViews cannot snap back to the first chat item.
- const settleScroll=()=>{
-  if(focusMessageId){
-   const target=box.querySelector(`[data-message-id="${CSS.escape(focusMessageId)}"]`);
-   if(target){target.scrollIntoView({block:"end",behavior:"auto"});followStream=true;updateScrollButton();return}
-  }
-  scrollToBottom({force:true});updateScrollButton();
- };
- settleScroll();requestAnimationFrame(settleScroll);
+ // Replacing the full message DOM can briefly reset the scroll container on long chats.
+ // Pin the messages container itself to its bottom; never use scrollIntoView here because
+ // mobile browsers/WebViews may scroll an ancestor (or the page) and jump to the chat top.
+ if(focusMessageId)settleChatAtBottom();
+ else scrollToBottom({force:true});
 }
 async function renderSkills(){const skills=await idbAll("skills"),box=$("#skillsList"),enabledCount=skills.filter(s=>s.enabled!==false).length;$("#skillCount").textContent=enabledCount===skills.length?String(skills.length):`${enabledCount}/${skills.length}`;box.innerHTML=skills.sort((a,b)=>b.updated-a.updated).map(s=>{const x=skillInfo(s);return`<div class="itemcard"><div class="itemtop"><div class="itemicon">✦</div><div class="grow"><div class="itemname">/${esc(x.name)}</div><div class="itemdesc">${esc(x.description)}</div></div><span class="badge ${s.enabled!==false?"ok":""}">${s.enabled!==false?"ON":"OFF"}</span></div><div class="itemactions"><button class="btn sm" data-editskill="${s.id}">تعديل</button><button class="btn sm" data-toggleskill="${s.id}">${s.enabled!==false?"تعطيل":"تفعيل"}</button></div></div>`}).join("")}
 const nativeDefs={
@@ -578,7 +573,13 @@ const ACTIVITY={
 function activityDots(){return '<span class="activity-dots"><i></i><i></i><i></i></span>'}
 function isNearBottom(threshold=110){const m=$("#messages");return !m||m.scrollHeight-m.scrollTop-m.clientHeight<threshold}
 function updateScrollButton(){const b=$("#scrollBottomBtn");if(!b)return;const away=!isNearBottom(80);b.classList.toggle("show",away);b.setAttribute("aria-hidden",away?"false":"true")}
-function scrollToBottom({smooth=false,force=true}={}){const m=$("#messages");if(!m)return;if(force)followStream=true;m.scrollTo({top:m.scrollHeight,behavior:smooth?"smooth":"auto"});requestAnimationFrame(updateScrollButton)}
+function scrollToBottom({smooth=false,force=true}={}){const m=$("#messages");if(!m)return;if(force)followStream=true;const top=Math.max(0,m.scrollHeight-m.clientHeight);if(smooth)m.scrollTo({top,behavior:"smooth"});else m.scrollTop=top;requestAnimationFrame(updateScrollButton)}
+function settleChatAtBottom(){
+ const m=$("#messages");if(!m)return;
+ followStream=true;
+ const pin=()=>{m.scrollTop=Math.max(0,m.scrollHeight-m.clientHeight);updateScrollButton()};
+ pin();requestAnimationFrame(()=>{pin();requestAnimationFrame(pin)});setTimeout(pin,80);
+}
 function beginStream(){streamText="";streamDisplayText="";streamActivityKind="";streamSearchQuery="";followStream=true;const box=$("#messagesInner");$("#streamingMessage")?.remove();const el=document.createElement("div");el.id="streamingMessage";el.className="msg assistant streaming";el.innerHTML=`<div class="avatar">✦</div><div class="bubble"><div class="meta">AiWay • مباشر</div><div id="liveActivity" class="activity-shell busy"><span class="activity-orb" id="activityIcon"></span><div class="activity-main"><div class="activity-copy"><div class="activity-title" id="activityTitle"></div><div class="activity-detail" id="activityDetail"></div></div><div id="activitySources" class="activity-sources" hidden></div><div id="activityVisuals" class="activity-visuals" hidden></div><div id="activityTraceList" class="activity-trace"></div></div></div><div class="msgtext" id="streamingText"></div></div>`;box.appendChild(el);setActivity("thinking");scrollToBottom({force:true})}
 function setActivity(kind="thinking",detail=""){document.body.dataset.agentState=kind;if(streamActivityKind===kind && !detail)return;streamActivityKind=kind;const a=ACTIVITY[kind]||ACTIVITY.tool,live=$("#liveActivity");if(live){live.className=`activity-shell busy kind-${kind}`};if($("#activityIcon"))$("#activityIcon").innerHTML=a.svg;if($("#activityTitle"))$("#activityTitle").innerHTML=`${esc(a.title)} ${activityDots()}`;if($("#activityDetail"))$("#activityDetail").textContent=detail||a.detail;if(kind==="searching"){renderActivitySources(currentRunSources);renderActivityImages(currentRunVisionImages)}else{renderActivitySources([]);renderActivityImages([])}}
 function streamStep(){
