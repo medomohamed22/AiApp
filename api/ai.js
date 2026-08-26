@@ -12,7 +12,7 @@
  */
 
 import { allowMethod, bodyJson, env, json, pipeFetch, requireAppAccess, rateLimit, requestAbortSignal } from '../lib/utils.js';
-import { proxyOpenCode, proxyHermesRun } from '../lib/provider-adapters.js';
+import { applyBaiReasoningPayload, proxyOpenCode, proxyHermesRun, reasoningPolicy } from '../lib/provider-adapters.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const BAI_URL = 'https://api.b.ai/v1/chat/completions';
@@ -91,11 +91,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${env('BAI_API_KEY')}`,
         },
-        body: JSON.stringify((() => {
-          const next = structuredClone(payload);
-          delete next.aiway_reasoning_level;
-          return next;
-        })()),
+        body: JSON.stringify(applyBaiReasoningPayload(payload)),
         signal,
       });
     } else if (provider === 'opencode') {
@@ -121,15 +117,18 @@ export default async function handler(req, res) {
       const base = cleanHermesBase(env('HERMES_BASE_URL'));
       const chatBase = base.endsWith('/v1') ? base : `${base}/v1`;
       const nextPayload = structuredClone(payload);
-      const reasoningLevel = normalizeReasoningLevel(nextPayload.aiway_reasoning_level);
+      const uiReasoningLevel = normalizeReasoningLevel(nextPayload.aiway_reasoning_level);
       delete nextPayload.aiway_reasoning_level;
-      nextPayload.reasoning_effort = reasoningLevel === 'off' ? 'none' : reasoningLevel;
       const encoded = String(nextPayload.model || '');
+      let hermesProvider = 'hermes';
       if (encoded.includes('::')) {
-        const [hermesProvider, ...rest] = encoded.split('::');
+        const [selectedProvider, ...rest] = encoded.split('::');
+        hermesProvider = selectedProvider;
         nextPayload.model = rest.join('::');
         nextPayload.provider = hermesProvider;
       }
+      const rp = reasoningPolicy(hermesProvider, nextPayload.model, uiReasoningLevel);
+      nextPayload.reasoning_effort = rp.effort || (rp.enabled ? 'high' : 'none');
       upstream = await fetch(`${chatBase}/chat/completions`, {
         method: 'POST',
         headers: {
