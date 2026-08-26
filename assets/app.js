@@ -155,12 +155,22 @@ function formatDuration(ms=0){ms=Math.max(0,Number(ms)||0);if(ms<1000)return`${M
 function sourceAvatar(src,i=0){const meta=faviconMeta(src.url);const letter=esc((src.domain||"S").slice(0,1).toUpperCase());if(!meta)return `<span class="source-fallback" data-source-fallback="${i}">${letter}</span>`;return `<span class="source-fallback" data-source-fallback="${i}">${letter}</span><img class="source-favicon" data-source-img="${i}" src="${esc(meta.primary)}" data-origin-favicon="${esc(meta.origin)}" data-duck-favicon="${esc(meta.duck)}" data-favicon-step="0" alt="" loading="lazy">`}
 function renderActivitySources(list=[]){const box=$("#activitySources");if(!box)return;const all=normalizeSources(list),sources=all.slice(0,10),sig=sources.map(x=>x.domain).join("|")+`:${all.length}`;if(!sources.length){box.hidden=true;box.innerHTML="";box.dataset.sig="";return}box.hidden=false;if(box.dataset.sig===sig)return;box.dataset.sig=sig;box.innerHTML=sources.map((x,i)=>`<span class="activity-source-chip" title="${esc(x.url)}"><span class="activity-source-logo">${sourceAvatar(x,i)}</span><span class="activity-source-domain">${esc(x.domain)}</span></span>`).join("")+(all.length>sources.length?`<span class="activity-source-chip activity-source-more">+${all.length-sources.length} مصدر</span>`:"")}
 function responseFooter(m){if(m.role!=="assistant")return"";const sources=normalizeSources(m.sources||[]),metrics=m.metrics||{};const sourcesHtml=sources.length?`<button class="source-trigger" data-sources="${esc(m.id)}" aria-expanded="false"><span class="source-stack">${sources.slice(0,3).map((x,i)=>sourceAvatar(x,i)).join("")}</span><span>المصادر ${sources.length}</span></button><div class="source-popover" data-source-popover="${esc(m.id)}"><div class="source-popover-head">المصادر التي استُخدمت في البحث</div>${sources.map((x,i)=>`<a class="source-link" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${sourceAvatar(x,i)}<span class="source-link-copy"><span class="source-link-domain">${esc(x.domain)}</span><span class="source-link-url">${esc(x.url)}</span></span><span class="source-link-arrow">↗</span></a>`).join("")}</div>`:"";const timing=metrics.totalMs?`<span class="metric-chip" title="الإجمالي: ${formatDuration(metrics.totalMs)}">◷ ${metrics.thinkingMs?`${formatDuration(metrics.thinkingMs)} تفكير`:""}${metrics.responseMs?`${metrics.thinkingMs?" • ":""}${formatDuration(metrics.responseMs)} رد`:""}</span>`:"";return `<div class="response-footer">${sourcesHtml}${timing}</div>`}
-async function renderMessages(){
+async function renderMessages({focusMessageId=null}={}){
  const c=await activeChat(),box=$("#messagesInner");$("#chatTitle").textContent=c?.title||"محادثة جديدة";box.replaceChildren();
  if(!c?.messages?.length){box.innerHTML=`<div class="welcome"><div class="hero-orb">✦</div><h1>Agent واحد، <span class="gradient">قدرات أكثر.</span></h1><p>OpenCode Zen أو Gemini أو OpenRouter أو Hermes، مع Skills وذاكرة محلية وأدوات MCP اختيارية.</p><div class="suggestions"><button class="suggestion">ابنِ لي واجهة احترافية وطبّق Skill الـFrontend</button><button class="suggestion">حلل مشكلة برمجية وابحث عن أحدث توثيق عند الحاجة</button><button class="suggestion">احفظ تفضيل مهم في الذاكرة للمحادثات القادمة</button><button class="suggestion">اعرض الأدوات المتاحة وقرر أيها تحتاجه للمهمة</button></div></div>`;return}
  const frag=document.createDocumentFragment(),hydrate=[];
  for(const m of c.messages){if(m.role==="tool_event")continue;const el=document.createElement("div");el.className=`msg ${m.role}${m.pinned?" pinned":""}`;el.dataset.messageId=m.id;const att=(m.attachments||[]).length?`<div class="attachment-summary">${(m.attachments||[]).map(a=>`<span class="attachment-mini">${a.kind==="image"?"🖼️":a.kind==="pdf"?"📄":a.kind==="project"?"🗜️":"📎"} ${esc(a.name)}</span>`).join("")}</div>`:"";el.innerHTML=`<div class="avatar">${m.role==="user"?"أ":"✦"}</div><div class="bubble"><div class="meta">${m.role==="user"?"أنت":"AiWay"} • ${new Date(m.time||Date.now()).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"})}</div>${m.role==="assistant"&&m.activityTrace?.length?responseActivityHtml(m.activityTrace):""}<div class="msgtext" data-message-text="${m.id}">${renderMessageText(m)}</div>${att}<div class="message-bottom"><div class="message-actions"><button class="mini-action" data-copymsg="${m.id}">نسخ الرد</button><button class="mini-action" data-branchmsg="${m.id}">↗ تفرع</button><button class="mini-action" data-pinmsg="${m.id}">${m.pinned?"★ مثبت":"☆ تثبيت"}</button></div>${responseFooter(m)}</div></div>`;frag.appendChild(el);hydrate.push([el,m])}
- box.appendChild(frag);for(const [el,m] of hydrate)hydrateInlineArtifact(el,m);requestAnimationFrame(()=>{scrollToBottom({force:true});updateScrollButton()})
+ box.appendChild(frag);for(const [el,m] of hydrate)hydrateInlineArtifact(el,m);
+ // Replacing the message DOM temporarily collapses the scroll container. Explicitly anchor
+ // a newly-sent user message so browsers/mobile WebViews cannot snap back to the first chat item.
+ const settleScroll=()=>{
+  if(focusMessageId){
+   const target=box.querySelector(`[data-message-id="${CSS.escape(focusMessageId)}"]`);
+   if(target){target.scrollIntoView({block:"end",behavior:"auto"});followStream=true;updateScrollButton();return}
+  }
+  scrollToBottom({force:true});updateScrollButton();
+ };
+ settleScroll();requestAnimationFrame(settleScroll);
 }
 async function renderSkills(){const skills=await idbAll("skills"),box=$("#skillsList"),enabledCount=skills.filter(s=>s.enabled!==false).length;$("#skillCount").textContent=enabledCount===skills.length?String(skills.length):`${enabledCount}/${skills.length}`;box.innerHTML=skills.sort((a,b)=>b.updated-a.updated).map(s=>{const x=skillInfo(s);return`<div class="itemcard"><div class="itemtop"><div class="itemicon">✦</div><div class="grow"><div class="itemname">/${esc(x.name)}</div><div class="itemdesc">${esc(x.description)}</div></div><span class="badge ${s.enabled!==false?"ok":""}">${s.enabled!==false?"ON":"OFF"}</span></div><div class="itemactions"><button class="btn sm" data-editskill="${s.id}">تعديل</button><button class="btn sm" data-toggleskill="${s.id}">${s.enabled!==false?"تعطيل":"تفعيل"}</button></div></div>`}).join("")}
 const nativeDefs={
@@ -584,6 +594,18 @@ function streamStep(){
  if(followStream)scrollToBottom({force:false});if(streamDisplayText.length<target.length)streamRAF=requestAnimationFrame(streamStep)
 }
 function updateStream(text){streamText=text||"";if(streamText&&!firstTextAt){firstTextAt=performance.now();pushRunActivity("assistant_write","يعمل…","بكتب الرد النهائي الآن","بكتب الرد")}if(streamText&&streamActivityKind!=="writing")setActivity("writing","بكتب الرد النهائي");if(!streamRAF)streamRAF=requestAnimationFrame(streamStep)}
+// A model can emit a short textual preamble and then decide to call a tool in the
+// same streamed turn. Show that text immediately for true time-to-first-token,
+// but clear the provisional turn before tool execution so the final answer does
+// not get mixed with an intermediate "I'll search/check..." sentence.
+function clearProvisionalStreamForToolCall(){
+ if(!streamText&&!streamDisplayText)return;
+ streamText="";streamDisplayText="";
+ if(streamRAF)cancelAnimationFrame(streamRAF);
+ streamRAF=0;streamLastPaint=0;
+ const x=$("#streamingText");if(x)x.innerHTML="";
+ setActivity("tool","ينفّذ الأداة المطلوبة قبل إكمال الرد");
+}
 function flushStream(){streamDisplayText=streamText;const x=$("#streamingText");if(x)x.innerHTML=formatText(streamDisplayText)+(streamDisplayText?`<span class="stream-cursor"></span>`:"");if(followStream)scrollToBottom({force:false})}
 function drainStream(maxMs=520){return new Promise(resolve=>{const started=performance.now();const tick=()=>{if(streamDisplayText.length>=streamText.length||performance.now()-started>=maxMs){flushStream();resolve();return}if(!streamRAF)streamRAF=requestAnimationFrame(streamStep);requestAnimationFrame(tick)};tick()})}
 function endStream(){document.body.dataset.agentState="idle";flushStream();$("#streamingMessage")?.remove();if(streamRAF)cancelAnimationFrame(streamRAF);streamRAF=0;streamLastPaint=0;streamActivityKind="";streamSearchQuery="";updateScrollButton()}
@@ -683,8 +705,9 @@ async function runAgent(chat,userText){
   if(state.settings.provider!=="gemini"){
     const messages=openRouterMessagesFromChat(base);
     while(round++<state.settings.maxRounds){
-      let buffered="";const turn=await openAICompatibleTurn({messages,system,tools:defs,onDelta:t=>{buffered=t;setActivity("thinking","يحدد هل يحتاج أداة أخرى أم يجهّز الرد")},provider:state.settings.provider});
-      if(!turn.toolCalls.length){if(String(turn.text||"").trim()){updateStream(turn.text);return turn.text;}return await finalizeOpenAIAnswer({messages,system,reason:"tools"})}
+      const turn=await openAICompatibleTurn({messages,system,tools:defs,onDelta:updateStream,provider:state.settings.provider});
+      if(!turn.toolCalls.length){if(String(turn.text||"").trim())return turn.text;return await finalizeOpenAIAnswer({messages,system,reason:"tools"})}
+      clearProvisionalStreamForToolCall();
       messages.push(turn.nativeAssistant);
       for(const call of turn.toolCalls){const {result}=await runTool(call);messages.push({role:"tool",tool_call_id:call.id,content:JSON.stringify(result)})}
       if(currentRunVisionImages.length>visionInjected){const visual=visualContextForOpenRouter(currentRunVisionImages.slice(visionInjected));if(visual)messages.push(visual);visionInjected=currentRunVisionImages.length}
@@ -694,8 +717,9 @@ async function runAgent(chat,userText){
   }
   const contents=geminiContentsFromChat(base);
   while(round++<state.settings.maxRounds){
-    let buffered="";const turn=await geminiTurn({contents,system,tools:defs,onDelta:t=>{buffered=t;setActivity("thinking","يحدد هل يحتاج أداة أخرى أم يجهّز الرد")}});
-    if(!turn.toolCalls.length){if(String(turn.text||"").trim()){updateStream(turn.text);return turn.text;}return await finalizeGeminiAnswer({contents,system,reason:"tools"})}
+    const turn=await geminiTurn({contents,system,tools:defs,onDelta:updateStream});
+    if(!turn.toolCalls.length){if(String(turn.text||"").trim())return turn.text;return await finalizeGeminiAnswer({contents,system,reason:"tools"})}
+    clearProvisionalStreamForToolCall();
     contents.push(turn.nativeAssistant);const responseParts=[];
     for(const call of turn.toolCalls){const {result,tool}=await runTool(call);const functionResponse={name:tool?.name||call.name,response:result};if(call.id)functionResponse.id=call.id;responseParts.push({functionResponse})}
     contents.push({role:"user",parts:responseParts});
@@ -765,11 +789,12 @@ async function send(){
   if(controller){abortActiveRequest();return}
   if(!text&&!pendingFiles.length)return;
   const c=await activeChat(),attachments=pendingFiles.map(cleanAttachment),userText=text||"حلل المرفقات";
-  c.messages.push({id:uid(),role:"user",text:userText,attachments,time:Date.now()});
+  const userMessage={id:uid(),role:"user",text:userText,attachments,time:Date.now()};
+  c.messages.push(userMessage);
   if(c.messages.filter(m=>m.role==="user").length===1)c.title=shortTitle(text||pendingFiles[0]?.name);
   c.updated=Date.now();await idbPut("chats",c);syncAgentModeSelector(c);
   $("#prompt").value="";pendingFiles=[];renderAttachments();$("#slashMenu").classList.remove("open");autoGrow();
-  await renderChats();await renderMessages();
+  await renderChats();await renderMessages({focusMessageId:userMessage.id});
   const requestController=new AbortController();controller=requestController;runtimeModelOverride=chooseRuntimeModel(userText,attachments);$("#sendBtn").classList.add("stop");$("#sendBtn").textContent="■";$("#activeInfo").textContent=`${runtimeModelOverride||state.settings.model} • يستجيب مباشرة…`;
   currentRunSources=[];currentRunVisionImages=[];currentRunActivity=[];currentRunInspector={skills:[],skillChain:[],memoryLayers:{},mcp:[]};runtimeContextPlan=null;runtimeUserQuery=userText;currentSearchRoute="web";runStartedAt=performance.now();firstTextAt=0;beginStream();pushRunActivity("assistant_plan","يعمل…","براجع الطلب والسياق المناسب للموديل","يفكر");setActivity("thinking","براجع الطلب والسياق المناسب للموديل");
   try{
@@ -831,9 +856,9 @@ function modelSafetyLimits(provider=state.settings.provider,model=runtimeModelOv
 function safeOutputTokens(){return Math.max(128,+state.settings.maxOutputTokens||8192)}
 function tokenEstimateText(text=""){const x=String(text||"");if(!x)return 0;const arabic=(x.match(/[\u0600-\u06ff]/g)||[]).length,code=(x.match(/[{}()[\];<>_=]/g)||[]).length;return Math.ceil(x.length/(arabic>x.length*.25?2.35:code>x.length*.08?3.15:3.7))+8}
 function tokenEstimateMessage(m){let n=tokenEstimateText(m?.text||"")+10;for(const a of m?.attachments||[]){if(a.kind==="text")n+=tokenEstimateText(a.text||"");else if(a.kind==="image")n+=1100;else if(a.kind==="pdf")n+=1800;else n+=500}return n}
-function contextTokenPlan(chat,system="",tools=[]){const limits=modelSafetyLimits(),output=safeOutputTokens(),systemTokens=tokenEstimateText(system),toolTokens=tokenEstimateText(JSON.stringify((tools||[]).map(t=>({name:t.name,description:t.description,parameters:t.parameters})))),manualCap=Math.max(2500,Math.floor((Math.max(8000,+state.settings.contextCharBudget||50000))/3)),inputBudget=manualCap;return{...limits,output,requestedOutput:output,systemTokens,toolTokens,reserve:0,inputBudget,manualOnly:true}}
+function contextTokenPlan(chat,system="",tools=[]){const limits=modelSafetyLimits(),output=safeOutputTokens(),systemTokens=tokenEstimateText(system),toolTokens=tokenEstimateText(JSON.stringify((tools||[]).map(t=>({name:t.name,description:t.description,parameters:t.parameters})))),manualChars=Math.max(8000,+state.settings.contextCharBudget||50000),manualCap=Math.max(2500,Math.floor(manualChars/3)),inputBudget=manualCap;return{...limits,output,requestedOutput:output,systemTokens,toolTokens,reserve:0,inputBudget,manualChars,manualOnly:true}}
 function selectContextMessages(chat,system="",tools=[]){const base=chat.messages.filter(m=>m.role==="user"||m.role==="assistant"),plan=contextTokenPlan(chat,system,tools),limit=Math.max(2,Math.min(+state.settings.historyLimit||30,100)),pool=base.slice(-Math.max(limit,40)),query=base.filter(m=>m.role==="user").at(-1)?.text||"",terms=contextTerms(query),score=m=>{const txt=String(m.text||"").toLowerCase();let s=m.pinned?100:0;for(const t of terms)if(txt.includes(t))s+=4;const idx=base.indexOf(m);s+=Math.max(0,12-(base.length-1-idx)*.35);return s},ordered=state.settings.contextMode==="full"?[...base.slice(-limit)].reverse():[...pool].sort((a,b)=>score(b)-score(a));const chosen=[],seen=new Set();let used=0;for(const m of ordered){if(seen.has(m.id))continue;const cost=tokenEstimateMessage(m);if(chosen.length>=2&&used+cost>plan.inputBudget)continue;if(cost>plan.inputBudget&&chosen.length)continue;chosen.push(m);seen.add(m.id);used+=cost;if(chosen.length>=limit||used>=plan.inputBudget)break}const selected=chosen.sort((a,b)=>base.indexOf(a)-base.indexOf(b));runtimeContextPlan={...plan,selectedTokens:used,selectedMessages:selected.length,totalMessages:base.length};return selected}
-function contextSummary(chat,selected=null,system="",tools=[]){selected=selected||selectContextMessages(chat,system,tools);const p=runtimeContextPlan||contextTokenPlan(chat,system,tools);return `${selected.length}/${p.totalMessages??chat.messages.filter(m=>m.role==="user"||m.role==="assistant").length} رسائل • ~${(p.selectedTokens||selected.reduce((n,m)=>n+tokenEstimateMessage(m),0)).toLocaleString()} tokens • السقف اليدوي ~${p.inputBudget.toLocaleString()} tokens`}
+function contextSummary(chat,selected=null,system="",tools=[]){selected=selected||selectContextMessages(chat,system,tools);const p=runtimeContextPlan||contextTokenPlan(chat,system,tools),manualChars=p.manualChars??Math.max(8000,+state.settings.contextCharBudget||50000);return `${selected.length}/${p.totalMessages??chat.messages.filter(m=>m.role==="user"||m.role==="assistant").length} رسائل • ~${(p.selectedTokens||selected.reduce((n,m)=>n+tokenEstimateMessage(m),0)).toLocaleString()} tokens مستخدمة • السقف اليدوي ${manualChars.toLocaleString()} حرف (~${p.inputBudget.toLocaleString()} tokens تقديريًا)`}
 async function ensureRuntimeModelDetails(){const provider=state.settings.provider,model=runtimeModelOverride||state.settings.model;if(loadedModelDetails?.[model]){updateModelLimitHint();return loadedModelDetails[model]}try{const d=await apiJson(`/api/models?provider=${encodeURIComponent(provider)}`,{headers:appApiHeaders({Accept:"application/json"}),cache:"no-store"});if(provider==="hermes")hermesCapabilities=d.capabilities||hermesCapabilities;for(const x of d.details||[])if(x?.id)loadedModelDetails[x.id]=x;updateModelLimitHint();return loadedModelDetails[model]||null}catch{updateModelLimitHint();return null}}
 function updateModelLimitHint(){const el=$("#modelLimitHint");if(!el)return;const model=$("#model")?.value?.trim()||runtimeModelOverride||state.settings.model,d=loadedModelDetails?.[model]||{},ctx=positiveLimit(d.contextWindow,d.context_length,d.inputTokenLimit),out=positiveLimit(d.maxOutputTokens,d.outputTokenLimit,d.max_completion_tokens),providerLimits=d.providerLimitsDeclared===true?"نعم — البروفايدر أعلن حدودًا":d.providerLimitsDeclared===false?"لا توجد حدود معلنة في API":"غير معروف/غير معلن";el.innerHTML=`قدرة الموديل: Context <strong>${ctx?ctx.toLocaleString()+" tokens":"غير معلن"}</strong> • Max Output <strong>${out?out.toLocaleString()+" tokens":"غير معلن"}</strong><br>حدود البروفايدر: <strong>${providerLimits}</strong>${d.api?` • Protocol: <strong>${esc(d.api)}</strong>`:""} • معلومات فقط، بدون تعديل تلقائي لإعداداتك.`}
 function chooseRuntimeModel(text,attachments=[]){if(state.settings.modelRouting!=="auto")return state.settings.model;const t=String(text||"").toLowerCase(),heavy=(attachments?.length||0)>0||t.length>1400||/code|برمج|html|css|javascript|python|debug|خطأ|بحث|research|architecture|تصميم|تحليل/.test(t);return (heavy?state.settings.qualityModel:state.settings.fastModel)||state.settings.model}
