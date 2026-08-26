@@ -809,3 +809,90 @@ body[data-theme="midnight"] .composer-reasoning .reasoning-btn{background:#201d2
 body[data-theme="midnight"] .composer-reasoning .reasoning-menu{background:#201d25;border-color:#3b3542}
 body[data-theme="midnight"] .composer-reasoning .reasoning-menu button:hover,body[data-theme="midnight"] .composer-reasoning .reasoning-menu button.active{background:#302b35;color:#fff}
 @media(max-width:620px){.composer-wrap{gap:0}.composer-reasoning{flex-basis:42px}.composer-reasoning .reasoning-btn{width:42px;height:42px;min-width:42px}.reasoning-gauge{width:24px;height:24px}.composer-reasoning .reasoning-menu{position:fixed;left:12px;right:12px;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 84px);width:auto}}
+
+/* === Compact AiWay reasoning trigger ===
+   Fixed-size icon-only control. The selected reasoning level must never resize the composer. */
+.composer-row .composer-reasoning{
+  flex:0 0 34px!important;
+  width:34px!important;
+  min-width:34px!important;
+  max-width:34px!important;
+  height:34px!important;
+  align-self:center;
+}
+.composer-row .composer-reasoning .reasoning-btn{
+  box-sizing:border-box!important;
+  width:34px!important;
+  height:34px!important;
+  min-width:34px!important;
+  max-width:34px!important;
+  min-height:34px!important;
+  max-height:34px!important;
+  flex:0 0 34px!important;
+  border:1px solid rgba(116,76,222,.22)!important;
+  border-radius:50%!important;
+  padding:0!important;
+  overflow:hidden;
+  background:linear-gradient(145deg,rgba(247,243,255,.98),rgba(239,232,255,.94))!important;
+  color:#7548dc!important;
+  box-shadow:0 3px 10px rgba(107,65,202,.10),inset 0 0 0 1px rgba(255,255,255,.66)!important;
+  position:relative;
+}
+.composer-row .composer-reasoning .reasoning-btn:hover{
+  background:linear-gradient(145deg,#f2ebff,#e8ddff)!important;
+  border-color:rgba(116,76,222,.34)!important;
+}
+.composer-row .composer-reasoning .reasoning-btn:focus-visible{
+  outline:2px solid rgba(121,75,226,.35);
+  outline-offset:2px;
+}
+.composer-row .composer-reasoning .reasoning-btn.on{
+  color:#6f3ed9!important;
+  border-color:rgba(111,62,217,.36)!important;
+  background:linear-gradient(145deg,#eee5ff,#e3d5ff)!important;
+  box-shadow:0 3px 11px rgba(107,65,202,.13),inset 0 0 0 1px rgba(255,255,255,.6)!important;
+}
+.composer-row .reasoning-gauge{
+  display:block;
+  width:19px!important;
+  height:19px!important;
+  min-width:19px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.75;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  pointer-events:none;
+}
+.composer-row .reasoning-gauge .reasoning-spark{
+  fill:currentColor;
+  stroke:none;
+  opacity:.9;
+}
+.composer-row .composer-reasoning .reasoning-btn::after{
+  content:"";
+  position:absolute;
+  inset-inline-end:4px;
+  bottom:4px;
+  width:4px;
+  height:4px;
+  border-radius:50%;
+  background:#8352e8;
+  box-shadow:0 0 0 2px rgba(255,255,255,.9);
+  opacity:0;
+  transform:scale(.6);
+  transition:opacity .15s ease,transform .15s ease;
+}
+.composer-row .composer-reasoning .reasoning-btn.on::after{opacity:1;transform:scale(1)}
+body[data-theme="midnight"] .composer-row .composer-reasoning .reasoning-btn{
+  background:linear-gradient(145deg,#2b2338,#241d30)!important;
+  border-color:rgba(177,143,255,.28)!important;
+  color:#b997ff!important;
+  box-shadow:0 3px 12px rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.025)!important;
+}
+body[data-theme="midnight"] .composer-row .composer-reasoning .reasoning-btn::after{box-shadow:0 0 0 2px #241d30}
+@media(max-width:620px){
+  .composer-row .composer-reasoning{flex-basis:34px!important;width:34px!important;min-width:34px!important;max-width:34px!important;height:34px!important}
+  .composer-row .composer-reasoning .reasoning-btn{width:34px!important;height:34px!important;min-width:34px!important;max-width:34px!important;min-height:34px!important;max-height:34px!important}
+  .composer-row .reasoning-gauge{width:19px!important;height:19px!important}
+}
