@@ -921,3 +921,4 @@ body[data-theme="midnight"] .command-group{background:rgba(28,25,36,.98)}
 .usage-token-chip.output{border-inline-start:3px solid #168a63}.usage-token-chip.output small{color:#137354}
 .usage-log-main{min-width:0}.usage-request-meta{margin-top:7px!important}.usage-cost-value{flex:0 0 auto}
 @media(max-width:620px){.usage-log-row{align-items:flex-start}.usage-token-pair{display:grid;grid-template-columns:1fr 1fr;width:100%}.usage-token-chip{min-width:0}.usage-breakdown-row{align-items:flex-start}.usage-cost-value{margin-top:2px}}
+.usage-payload-meta{margin-top:5px!important;font:700 8px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;color:var(--muted)!important;direction:ltr;text-align:left}.usage-payload-meta b{display:inline!important;font:900 8px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;color:var(--text)}
