@@ -32,6 +32,29 @@ function sanitizeContextEnvelope(payload = {}) {
   return next;
 }
 
+async function rejectUnexpectedHtml(upstream, res, providerLabel = 'AI provider') {
+  const contentType = String(upstream.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) return false;
+
+  // API gateways/CDNs occasionally answer with an HTML error document (or a
+  // challenge page). Never stream that document into the chat UI. Keep the
+  // upstream body private and return a stable JSON error instead.
+  const status = upstream.status || 502;
+  const redirected = Boolean(upstream.redirected);
+  const upstreamUrl = (() => {
+    try { return new URL(upstream.url).host; } catch { return ''; }
+  })();
+  return json(res, 502, {
+    error: {
+      code: 'UPSTREAM_HTML_RESPONSE',
+      message: `${providerLabel} رجّع صفحة HTML بدل استجابة API. تحقق من عنوان الـAPI والمفتاح أو حالة المزود ثم جرّب مرة أخرى.`,
+      upstream_status: status,
+      ...(redirected ? { redirected: true } : {}),
+      ...(upstreamUrl ? { upstream_host: upstreamUrl } : {}),
+    },
+  });
+}
+
 function normalizeReasoningLevel(value) {
   const level = String(value || 'off').toLowerCase();
   return ['off', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off';
@@ -116,11 +139,14 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'text/event-stream, application/json',
           'Authorization': `Bearer ${env('NEW_API_KEY')}`,
+          'User-Agent': 'AiWay-Vercel/1.0',
         },
         body: JSON.stringify(nextPayload),
         signal,
       });
+      if (await rejectUnexpectedHtml(upstream, res, 'New API')) return;
     } else if (provider === 'opencode') {
       const result = await proxyOpenCode(scopedPayload, res, signal);
       res.setHeader('X-AiWay-OpenCode-Gateway', new URL(result.url).host);
