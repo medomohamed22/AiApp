@@ -1376,3 +1376,4 @@ body[data-theme="midnight"] .command-kbd{background:#241e2b!important;border-col
 }
 @media(hover:none){.command-item:hover{transform:none}.navitem:hover{transform:none}}
 @media(prefers-reduced-motion:reduce){.command-item,.navitem,.mini-action{transition:none!important}}
+.activity-trace-duration{font-size:8px;font-weight:800;color:#8d8398;margin-inline-start:6px;white-space:nowrap}

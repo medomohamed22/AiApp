@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+const app=fs.readFileSync('assets/app.js','utf8');
+const css=fs.readFileSync('assets/app.css','utf8');
+const need=(re,msg)=>{if(!re.test(app))throw new Error(msg)};
+need(/else if\(server\.sessionId\)h\["Mcp-Session-Id"\]/,'modern MCP must not carry legacy session headers');
+need(/if\(!modern&&proxied\.sessionId\)server\.sessionId=proxied\.sessionId/,'modern MCP must not persist transport session ids');
+need(/PARALLEL_READ_TOOLS=new Set\(/,'safe parallel tool execution contract missing');
+need(/Promise\.all\(parallel\.map/,'parallel tool batch execution missing');
+need(/direct\.source==="native"&&direct\.permission==="auto"&&PARALLEL_READ_TOOLS\.has/,'parallelism must be restricted to auto read-only native tools');
+need(/base\.filter\(x=>x\.pinned\)/,'pinned messages must survive normal context tail truncation');
+need(/data-retrymsg=/,'assistant retry action missing');
+need(/data-editmsg=/,'user edit-and-resend action missing');
+need(/http__\$\{String\(t\.id/,'HTTP tool namespace collision guard missing');
+need(/schema\.oneOf/,'JSON Schema oneOf validation missing');
+need(/schema\.anyOf/,'JSON Schema anyOf validation missing');
+need(/schema\.allOf/,'JSON Schema allOf validation missing');
+if(!/activity-trace-duration/.test(css))throw new Error('trace duration UI missing');
+console.log('advanced chatbot architecture guards ok');

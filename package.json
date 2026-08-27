@@ -13,7 +13,7 @@
     "test:platform": "node tests/agent-platform.mjs",
     "test:self-learning": "node tests/self-learning-sandbox.mjs",
     "test:exa": "node tests/exa-search.mjs",
-    "test:intelligence": "node tests/agent-intelligence-2026.mjs && node tests/agent-skills-tools-architecture.mjs",
+    "test:intelligence": "node tests/agent-intelligence-2026.mjs && node tests/agent-skills-tools-architecture.mjs && node tests/advanced-chatbot-architecture.mjs",
     "test:maintenance": "node tests/maintenance-contract.mjs",
     "check": "npm test",
     "test:wiring": "node tests/integration-wiring.mjs"
