@@ -16,6 +16,7 @@ import { applyBaiReasoningPayload, proxyOpenCode, proxyHermesRun, reasoningPolic
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const BAI_URL = 'https://api.b.ai/v1/chat/completions';
+const NEW_API_URL = 'https://api.justwoker.icu/v1/chat/completions';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 
@@ -92,6 +93,19 @@ export default async function handler(req, res) {
           'Authorization': `Bearer ${env('BAI_API_KEY')}`,
         },
         body: JSON.stringify(applyBaiReasoningPayload(payload)),
+        signal,
+      });
+    } else if (provider === 'newapi') {
+      const nextPayload = structuredClone(payload);
+      // AiWay-only UI metadata must never leak to OpenAI-compatible upstreams.
+      delete nextPayload.aiway_reasoning_level;
+      upstream = await fetch(NEW_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env('NEW_API_KEY')}`,
+        },
+        body: JSON.stringify(nextPayload),
         signal,
       });
     } else if (provider === 'opencode') {

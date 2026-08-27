@@ -176,6 +176,21 @@ export default async function handler(req, res) {
       if (!r.ok) throw new Error(d?.error?.message || d?.message || `B.ai HTTP ${r.status}`);
       details = modelDetailsFromOpenAI(d.data || d.models || d, 'bai');
       if (!details.length) throw new Error('B.ai returned an empty model catalog. You can still type a model ID manually.');
+    } else if (provider === 'newapi') {
+      const r = await fetch('https://api.justwoker.icu/v1/models', {
+        headers: {
+          Authorization: `Bearer ${env('NEW_API_KEY')}`,
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+      });
+      const raw = await r.text();
+      let d = null;
+      try { d = raw ? JSON.parse(raw) : null; } catch {}
+      if (!r.ok) throw new Error(d?.error?.message || d?.error || d?.message || raw.slice(0, 220) || `New API HTTP ${r.status}`);
+      if (!d) throw new Error('New API returned an empty models response');
+      details = modelDetailsFromOpenAI(d.data || d.models || d, 'newapi');
+      if (!details.length) throw new Error('New API returned an empty model catalog. You can still type a model ID manually.');
     } else if (provider === 'opencode') {
       const headers = {
         Accept: 'application/json',
