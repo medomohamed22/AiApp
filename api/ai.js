@@ -32,6 +32,23 @@ function sanitizeContextEnvelope(payload = {}) {
   return next;
 }
 
+function sanitizeChatMessages(payload = {}) {
+  const next = structuredClone(payload);
+  if (!Array.isArray(next.messages)) return next;
+  // Provider requests may contain only the explicit chat transcript plus tool-result
+  // messages created during this run. Never forward browser/workspace metadata hidden
+  // inside arbitrary message fields.
+  next.messages = next.messages.slice(-120).map((message = {}) => {
+    const role = ['system', 'user', 'assistant', 'tool'].includes(message.role) ? message.role : 'user';
+    const clean = { role, content: message.content ?? '' };
+    if (role === 'assistant' && Array.isArray(message.tool_calls)) clean.tool_calls = message.tool_calls;
+    if (role === 'tool' && message.tool_call_id) clean.tool_call_id = String(message.tool_call_id);
+    if (message.name) clean.name = String(message.name);
+    return clean;
+  });
+  return next;
+}
+
 async function rejectUnexpectedHtml(upstream, res, providerLabel = 'AI provider') {
   const contentType = String(upstream.headers.get('content-type') || '').toLowerCase();
   if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) return false;
@@ -106,7 +123,7 @@ export default async function handler(req, res) {
     if (!provider || !payload || typeof payload !== 'object') {
       return json(res, 400, { error: 'provider and payload are required' });
     }
-    const scopedPayload = sanitizeContextEnvelope(payload);
+    const scopedPayload = sanitizeChatMessages(sanitizeContextEnvelope(payload));
 
     let upstream;
     if (provider === 'openrouter') {
