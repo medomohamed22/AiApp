@@ -40,7 +40,8 @@ const mentions=[
 for(const q of mentions){const r=f(q);if(!r.suggested)throw new Error(`search tool mention should expose web tool: ${q}`);if(r.force)throw new Error(`capability-only search mention should not auto-search: ${q}`)}
 if(!f('استخدم أداة البحث عشان تجيب آخر أخبار OpenAI').force)throw new Error('explicit Arabic search-tool use should force web');
 
-if(!js.includes('forcedWeb=await webSearch(searchIntent.query)'))throw new Error('deterministic search execution missing');
-if(!js.includes('toolPlan.defs=toolPlan.defs.filter(t=>t.name!=="web_search")'))throw new Error('duplicate-search guard missing');
+if(!js.includes('MODEL-OWNED TOOL ROUTING (OpenAI-style)'))throw new Error('model-owned tool routing contract missing');
+if(!js.includes('Use web_search directly whenever the answer depends on live/current/external facts'))throw new Error('current-information web routing instruction missing');
+if(!js.includes('for(const name of ["web_search","tool_search"])'))throw new Error('core web/tool discovery catalog missing');
 if(js.includes('name==="web_search"&&!state.settings.webEnabled'))throw new Error('legacy hard webEnabled gate still present');
 console.log('smart search router guards ok');

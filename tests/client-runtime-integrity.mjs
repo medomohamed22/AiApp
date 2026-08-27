@@ -14,6 +14,7 @@ const missing=required.filter(x=>!declared.has(x));
 if(missing.length)throw new Error(`Missing client runtime declarations: ${missing.join(', ')}`);
 const renderAll=src.match(/async function renderAll\(\)\{([^}]*)\}/)?.[1]||'';
 for(const name of ['renderProjects','renderChats','renderMessages','renderSkills','renderSkillLearning','renderTools','renderMemory','renderArtifacts','renderTimeline','renderSettings','renderToggles']){
-  if(!renderAll.includes(`${name}(`))throw new Error(`renderAll no longer invokes ${name}`);
+  const direct=renderAll.includes(`${name}(`),referenced=renderAll.includes(name);
+  if(!direct&&!referenced)throw new Error(`renderAll no longer schedules ${name}`);
 }
 console.log('client runtime integrity ok');

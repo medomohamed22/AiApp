@@ -19,6 +19,8 @@ const MAX_RESPONSE_BYTES = 1_250_000;
 
 const SANDBOX_MAX_FILE_BYTES = 700_000;
 const SANDBOX_MAX_SYNC_BYTES = 850_000;
+const SANDBOX_MAX_ASSEMBLED_BYTES = 12_000_000;
+const SANDBOX_MAX_CHUNKS = 32;
 const SANDBOX_COMMAND_LIMIT = 12_000;
 
 function sandboxName(projectId = "") {
@@ -91,6 +93,35 @@ async function sandboxAction(payload) {
     if (Buffer.byteLength(content) > SANDBOX_MAX_FILE_BYTES) throw new Error('Sandbox file exceeds safe size limit');
     await sbx.writeFiles([{ path: `/workspace/${path}`, content: Buffer.from(content, 'utf8') }]);
     return { ok: true, path, bytes: Buffer.byteLength(content) };
+  }
+  if (op === 'chunk-write') {
+    const path = sandboxPath(payload.path);
+    const uploadId = String(payload.uploadId || '');
+    const index = Number(payload.index);
+    const content = String(payload.content ?? '');
+    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(uploadId)) throw new Error('Invalid sandbox upload id');
+    if (!Number.isInteger(index) || index < 0 || index >= SANDBOX_MAX_CHUNKS) throw new Error('Invalid sandbox chunk index');
+    if (Buffer.byteLength(content) > SANDBOX_MAX_FILE_BYTES) throw new Error('Sandbox chunk exceeds safe size limit');
+    const chunkPath = `/workspace/.aiway-upload/${uploadId}/${String(index).padStart(3, '0')}.part`;
+    await sbx.runCommand('mkdir', ['-p', `/workspace/.aiway-upload/${uploadId}`]);
+    await sbx.writeFiles([{ path: chunkPath, content: Buffer.from(content, 'utf8') }]);
+    return { ok: true, path, uploadId, index, bytes: Buffer.byteLength(content) };
+  }
+  if (op === 'chunk-finish') {
+    const path = sandboxPath(payload.path);
+    const uploadId = String(payload.uploadId || '');
+    const parts = Number(payload.parts);
+    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(uploadId)) throw new Error('Invalid sandbox upload id');
+    if (!Number.isInteger(parts) || parts < 1 || parts > SANDBOX_MAX_CHUNKS) throw new Error('Invalid sandbox chunk count');
+    const dir = `/workspace/.aiway-upload/${uploadId}`;
+    const target = `/workspace/${path}`;
+    const partPaths = Array.from({ length: parts }, (_, i) => `${dir}/${String(i).padStart(3, '0')}.part`);
+    const script = `const fs=require('fs');const [target,max,...parts]=process.argv.slice(1);const bufs=parts.map(p=>fs.readFileSync(p));const total=bufs.reduce((n,b)=>n+b.length,0);if(total>Number(max)){console.error('assembled file exceeds safe size limit');process.exit(2)}fs.mkdirSync(require('path').dirname(target),{recursive:true});fs.writeFileSync(target,Buffer.concat(bufs));process.stdout.write(String(total));`;
+    const result = await sbx.runCommand('node', ['-e', script, target, String(SANDBOX_MAX_ASSEMBLED_BYTES), ...partPaths]);
+    if (Number(result?.exitCode || 0) !== 0) throw new Error((await streamTextValue(result?.stderr)) || 'Failed to assemble sandbox chunks');
+    const bytes = Number((await streamTextValue(result?.stdout)).trim() || 0);
+    try { await sbx.runCommand('rm', ['-rf', dir]); } catch {}
+    return { ok: true, path, bytes, parts };
   }
   if (op === 'read') {
     const path = sandboxPath(payload.path);

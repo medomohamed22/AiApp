@@ -40,13 +40,13 @@ assert.match(publish, /Duplicate file paths are not allowed/);
 // Closing any sheet (including Escape/backdrop) must deny a pending permission prompt.
 assert.match(app, /function resolvePendingPermission\(allowed=false\)/);
 assert.match(app, /function closeSheets\(\).*resolvePendingPermission\(false\)/s);
-assert.match(app, /inflateZipBytes\(bytes,maxBytes=900000\)/);
+assert.match(app, /inflateZipBytes\(bytes,maxBytes=8\*1024\*1024\)/);
 assert.match(app, /total>maxBytes/);
 assert.match(app, /const all=await idbAll\("artifacts"\),byName=new Map/);
 
 // AbortSignal should flow through every AI proxy path.
 assert.match(ai, /requestAbortSignal\(req, res\)/);
-assert.match(ai, /proxyOpenCode\(payload, res, signal\)/);
+assert.match(ai, /proxyOpenCode\(scopedPayload, res, signal\)/);
 assert.match(ai, /proxyHermesRun\(\{ payload: nextPayload, sessionId: .* signal \}, res\)/s);
 assert.match(adapters, /proxyOpenCode\(payload,res,signal\)/);
 assert.match(adapters, /proxyHermesRun\(\{payload,sessionId,signal\},res\)/);
