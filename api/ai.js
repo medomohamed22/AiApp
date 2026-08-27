@@ -20,6 +20,18 @@ const NEW_API_URL = 'https://api.justwoker.icu/v1/chat/completions';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 
+
+function sanitizeContextEnvelope(payload = {}) {
+  const next = structuredClone(payload);
+  // Context ownership lives in the active browser chat. Never accept side-channel
+  // workspace/project/memory bundles that could silently inflate provider prompts.
+  for (const key of ['project_context', 'workspace_context', 'memory_context', 'artifact_context', 'artifacts', 'other_chats', 'conversations']) {
+    delete next[key];
+  }
+  delete next.aiway_context_scope;
+  return next;
+}
+
 function normalizeReasoningLevel(value) {
   const level = String(value || 'off').toLowerCase();
   return ['off', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off';
@@ -71,6 +83,7 @@ export default async function handler(req, res) {
     if (!provider || !payload || typeof payload !== 'object') {
       return json(res, 400, { error: 'provider and payload are required' });
     }
+    const scopedPayload = sanitizeContextEnvelope(payload);
 
     let upstream;
     if (provider === 'openrouter') {
@@ -82,7 +95,7 @@ export default async function handler(req, res) {
           'HTTP-Referer': process.env.APP_URL || 'https://aiway.vercel.app',
           'X-Title': 'AiWay',
         },
-        body: JSON.stringify(applyOpenRouterReasoning(payload)),
+        body: JSON.stringify(applyOpenRouterReasoning(scopedPayload)),
         signal,
       });
     } else if (provider === 'bai') {
@@ -92,11 +105,11 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${env('BAI_API_KEY')}`,
         },
-        body: JSON.stringify(applyBaiReasoningPayload(payload)),
+        body: JSON.stringify(applyBaiReasoningPayload(scopedPayload)),
         signal,
       });
     } else if (provider === 'newapi') {
-      const nextPayload = structuredClone(payload);
+      const nextPayload = structuredClone(scopedPayload);
       // AiWay-only UI metadata must never leak to OpenAI-compatible upstreams.
       delete nextPayload.aiway_reasoning_level;
       upstream = await fetch(NEW_API_URL, {
@@ -109,7 +122,7 @@ export default async function handler(req, res) {
         signal,
       });
     } else if (provider === 'opencode') {
-      const result = await proxyOpenCode(payload, res, signal);
+      const result = await proxyOpenCode(scopedPayload, res, signal);
       res.setHeader('X-AiWay-OpenCode-Gateway', new URL(result.url).host);
       res.setHeader('X-AiWay-OpenCode-API', result.protocol);
       if (result.normalized) return;
@@ -123,14 +136,14 @@ export default async function handler(req, res) {
         }
       });
     } else if (provider === 'hermes' && payload?.aiway_native_run === true) {
-      const nextPayload = structuredClone(payload);
+      const nextPayload = structuredClone(scopedPayload);
       delete nextPayload.aiway_native_run;
       await proxyHermesRun({ payload: nextPayload, sessionId: req.headers?.['x-aiway-chat-id'], signal }, res);
       return;
     } else if (provider === 'hermes') {
       const base = cleanHermesBase(env('HERMES_BASE_URL'));
       const chatBase = base.endsWith('/v1') ? base : `${base}/v1`;
-      const nextPayload = structuredClone(payload);
+      const nextPayload = structuredClone(scopedPayload);
       const uiReasoningLevel = normalizeReasoningLevel(nextPayload.aiway_reasoning_level);
       delete nextPayload.aiway_reasoning_level;
       const encoded = String(nextPayload.model || '');
@@ -161,7 +174,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'x-goog-api-key': env('GEMINI_API_KEY'),
         },
-        body: JSON.stringify(applyGeminiReasoning(payload, model)),
+        body: JSON.stringify(applyGeminiReasoning(scopedPayload, model)),
         signal,
       });
     } else {
