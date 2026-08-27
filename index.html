@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#f7f5ff" />
 <title>AiWay — AI Agent</title>
-<link rel="stylesheet" href="/assets/app.css?v=5.3-mobile-interaction-integrity" />
+<link rel="stylesheet" href="/assets/app.css?v=5.5-premium-ui" />
 </head>
 <body>
 <div class="app">
@@ -63,15 +63,22 @@
           <textarea id="prompt" rows="1" placeholder="اكتب أي شيء"></textarea>
           <div class="reasoning-control composer-reasoning">
             <button class="reasoning-btn" id="reasoningToggle" aria-haspopup="menu" aria-expanded="false" aria-pressed="false" title="مستوى التفكير">
-              <svg class="reasoning-gauge" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.1 15.8a6.7 6.7 0 1 1 9.8 0"/><path d="M9.1 18.2h5.8"/><path d="M10.2 20.2h3.6"/><path d="M12 5.2v1.3M5.7 8l1.1.7M18.3 8l-1.1.7"/><path class="reasoning-spark" d="M16.8 4.2l.45 1.15 1.15.45-1.15.45-.45 1.15-.45-1.15-1.15-.45 1.15-.45.45-1.15Z"/></svg>
-              <span class="sr-only" id="reasoningLabel">فوري</span>
+              <span class="reasoning-orb" aria-hidden="true">
+                <svg class="reasoning-gauge" viewBox="0 0 24 24"><path d="M7.1 15.8a6.7 6.7 0 1 1 9.8 0"/><path d="M9.1 18.2h5.8"/><path d="M10.2 20.2h3.6"/><path d="M12 5.2v1.3M5.7 8l1.1.7M18.3 8l-1.1.7"/><path class="reasoning-spark" d="M16.8 4.2l.45 1.15 1.15.45-1.15.45-.45 1.15-.45-1.15-1.15-.45 1.15-.45.45-1.15Z"/></svg>
+              </span>
+              <span class="reasoning-trigger-copy"><small>التفكير</small><b id="reasoningLabel">فوري</b></span>
+              <span class="reasoning-level-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              <svg class="reasoning-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
             </button>
             <div class="reasoning-menu" id="reasoningMenu" role="menu" aria-label="مستوى التفكير" hidden>
-              <div class="reasoning-menu-title">مستوى التفكير</div>
-              <button role="menuitemradio" data-reasoning="off"><span>فوري</span><small>أسرع استجابة</small></button>
-              <button role="menuitemradio" data-reasoning="medium"><span>متوسط</span><small>توازن بين السرعة والعمق</small></button>
-              <button role="menuitemradio" data-reasoning="high"><span>عالٍ</span><small>تفكير أعمق للمهام الصعبة</small></button>
-              <button role="menuitemradio" data-reasoning="xhigh"><span>عالٍ جدًا</span><small>أقصى عمق للمسائل المعقدة</small></button>
+              <div class="reasoning-menu-head"><div><span>مستوى التفكير</span><small>اختر العمق المناسب للمهمة</small></div><span class="reasoning-ai-badge">AI</span></div>
+              <div class="reasoning-menu-options">
+                <button role="menuitemradio" data-reasoning="off"><span class="reasoning-option-icon">⚡</span><span class="reasoning-option-copy"><b>فوري</b><small>أسرع استجابة للأسئلة اليومية</small></span><span class="reasoning-option-meter"><i></i><i></i><i></i><i></i></span></button>
+                <button role="menuitemradio" data-reasoning="medium"><span class="reasoning-option-icon">✦</span><span class="reasoning-option-copy"><b>متوسط</b><small>توازن ممتاز بين السرعة والعمق</small></span><span class="reasoning-option-meter"><i></i><i></i><i></i><i></i></span></button>
+                <button role="menuitemradio" data-reasoning="high"><span class="reasoning-option-icon">◆</span><span class="reasoning-option-copy"><b>عالٍ</b><small>تحليل أعمق للبرمجة والمهام الصعبة</small></span><span class="reasoning-option-meter"><i></i><i></i><i></i><i></i></span></button>
+                <button role="menuitemradio" data-reasoning="xhigh"><span class="reasoning-option-icon">✺</span><span class="reasoning-option-copy"><b>عالٍ جدًا</b><small>أقصى عمق للمسائل المعقدة متعددة الخطوات</small></span><span class="reasoning-option-meter"><i></i><i></i><i></i><i></i></span></button>
+              </div>
+              <div class="reasoning-menu-foot"><span class="reasoning-foot-dot"></span><span>يُطبّق الاختيار على الرسالة التالية</span></div>
             </div>
           </div>
           <button class="send" id="sendBtn" title="إرسال">➤</button>
@@ -251,6 +258,6 @@
 <div class="askbox" id="askBox"><h3>السماح بتشغيل الأداة؟</h3><p id="askText"></p><pre id="askArgs"></pre><div class="row"><button class="btn primary grow" id="askAllow">سماح هذه المرة</button><button class="btn" id="askDeny">رفض</button></div></div>
 <div class="secretbox" id="secretBox" role="dialog" aria-modal="true" aria-labelledby="secretTitle"><h3 id="secretTitle">إضافة Secret للمشروع</h3><p id="secretHelp">أدخل قيمة المفتاح. سيتم إرسالها مباشرة إلى Vercel ولن تدخل إلى المحادثة.</p><div><span class="secret-key" id="secretKeyLabel">API_KEY</span></div><div style="height:9px"></div><input class="field" id="secretValueInput" type="password" autocomplete="new-password" placeholder="الصق API key هنا" /><div class="secret-security"><span>🔒</span><span>القيمة لا تُحفظ في IndexedDB أو Artifacts أو رسائل المحادثة، ولا يتم إرجاعها من الأداة للنموذج.</span></div><div class="row wrap"><a class="btn sm" id="secretProviderLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">فتح لوحة مزود الـAPI ↗</a><span class="grow"></span><button class="btn" id="secretCancelBtn">إلغاء</button><button class="btn primary" id="secretSaveBtn">حفظ في Vercel</button></div></div>
 
-<script src="/assets/app.js?v=5.3-mobile-interaction-integrity" defer></script>
+<script src="/assets/app.js?v=5.5-premium-ui" defer></script>
 </body>
 </html>
