@@ -70,7 +70,7 @@ Inspect before editing. Use project_search first, artifact_read for exact files,
 
 const REASONING_LABELS={off:"فوري",medium:"متوسط",high:"عالٍ",xhigh:"عالٍ جدًا"};
 function reasoningLevel(){let v=String(state.settings.reasoningLevel||"off").toLowerCase();if(v==="low")v="medium";return Object.hasOwn(REASONING_LABELS,v)?v:"off"}
-function renderReasoning(){const level=reasoningLevel(),btn=$("#reasoningToggle"),label=$("#reasoningLabel"),menu=$("#reasoningMenu");if(label)label.textContent=REASONING_LABELS[level];if(btn){btn.classList.toggle("on",level!=="off");btn.setAttribute("aria-pressed",level!=="off"?"true":"false");btn.title=`مستوى التفكير: ${REASONING_LABELS[level]}`}if(menu)menu.querySelectorAll("[data-reasoning]").forEach(x=>{const active=x.dataset.reasoning===level;x.classList.toggle("active",active);x.setAttribute("aria-checked",active?"true":"false")})}
+function renderReasoning(){const level=reasoningLevel(),btn=$("#reasoningToggle"),label=$("#reasoningLabel"),menu=$("#reasoningMenu"),control=btn?.closest(".reasoning-control");if(label)label.textContent=REASONING_LABELS[level];if(control)control.dataset.level=level;if(btn){btn.classList.toggle("on",level!=="off");btn.setAttribute("aria-pressed",level!=="off"?"true":"false");btn.title=`مستوى التفكير: ${REASONING_LABELS[level]}`}if(menu)menu.querySelectorAll("[data-reasoning]").forEach(x=>{const active=x.dataset.reasoning===level;x.classList.toggle("active",active);x.setAttribute("aria-checked",active?"true":"false")})}
 function providerLabel(p){return({gemini:"Gemini",openrouter:"OpenRouter",bai:"B.ai",newapi:"New API",opencode:"OpenCode Zen",hermes:"Hermes Agent"})[p]||p||"Provider"}
 
 const AGENT_MODES={
