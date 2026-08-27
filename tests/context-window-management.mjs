@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+const js=fs.readFileSync(new URL('../assets/app.js',import.meta.url),'utf8');
+const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const need=(re,msg)=>{if(!re.test(js))throw new Error(msg)};
+need(/hardInputBudget=Math\.max\(2048,limits\.contextWindow-output-reserve\)/,'model context window is not enforced as a hard input budget');
+need(/hardMessageBudget=Math\.max\(1024,hardInputBudget-systemTokens-toolTokens\)/,'system/tool schemas are not reserved from the message budget');
+need(/function prepareOpenAIContext\(/,'OpenAI-compatible per-turn context guard missing');
+need(/function prepareGeminiContext\(/,'Gemini per-turn context guard missing');
+need(/contextCleared:true/,'old tool-result clearing marker missing');
+need(/tool_call_id/,'tool protocol identity must be preserved while clearing results');
+need(/COMPACTED EARLIER CONVERSATION/,'conversation compaction fallback missing');
+need(/contextLimitErrorMessage\(msg\).*emergency:true/s,'provider token-limit emergency retry missing');
+need(/contextCompactions/,'context compaction diagnostics missing from inspector');
+if(!html.includes('Hard Limit'))throw new Error('settings UI does not explain the provider hard limit');
+if(html.includes('معلومات فقط ولا تغيّر هذه القيمة تلقائيًا'))throw new Error('stale model-limit UI copy still claims limits are informational only');
+console.log('context window management guards ok');

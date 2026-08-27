@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:server && npm run test:client && npm run test:config && npm run test:protocols && npm run test:agent && npm run test:security && npm run test:platform && npm run test:self-learning && npm run test:intelligence && npm run test:exa && npm run test:maintenance && npm run test:wiring && node tests/live-streaming-regression.mjs",
+    "test": "npm run test:server && npm run test:client && npm run test:config && npm run test:protocols && npm run test:agent && npm run test:security && npm run test:platform && npm run test:self-learning && npm run test:intelligence && npm run test:exa && npm run test:maintenance && npm run test:wiring && node tests/live-streaming-regression.mjs && node tests/context-window-management.mjs",
     "test:server": "node --check lib/utils.js && node --check lib/vercel-api.js && node --check lib/provider-adapters.js && node --check api/ai.js && node --check api/models.js && node --check api/search.js && node --check api/health.js && node --check api/publish.js && node --check api/publish-check.js && node --check api/environment.js && node --check api/agent.js",
     "test:client": "node --check assets/app.js && node tests/client-runtime-integrity.mjs && node tests/ui-optional-dom-regression.mjs && node tests/memory-reasoning-ui.mjs && node tests/search-router.mjs && node tests/mobile-interaction-regressions.mjs && node tests/chat-context-regressions.mjs && node tests/usage-prompts.mjs",
     "test:config": "node -e \"JSON.parse(require('fs').readFileSync('vercel.json')); JSON.parse(require('fs').readFileSync('opencode.json')); console.log('config ok')\"",
