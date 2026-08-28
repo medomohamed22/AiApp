@@ -228,6 +228,8 @@ export default async function handler(req, res) {
       const status = upstream.status || 502;
       const raw = await upstream.clone().text().catch(() => '');
       if (!String(raw || '').trim()) {
+        const retryAfter = upstream.headers.get('retry-after');
+        if (retryAfter) res.setHeader('Retry-After', retryAfter);
         const message = status === 429
           ? 'مزود النموذج رفض الطلب بسبب Rate Limit (HTTP 429). قلّل عدد جولات الـAgent أو انتظر قليلًا ثم أعد المحاولة.'
           : status === 413
