@@ -1360,10 +1360,85 @@ function extractImageUrls(value){
  return out.slice(0,24);
 }
 function renderActivityImages(list=[]){const box=$("#activityVisuals");if(!box)return;const imgs=(list||[]).slice(0,6),sig=imgs.map(x=>x.url).join("|");if(!imgs.length){box.hidden=true;box.innerHTML="";box.dataset.sig="";return}box.hidden=false;if(box.dataset.sig===sig)return;box.dataset.sig=sig;box.innerHTML=imgs.map((x,i)=>`<span class="activity-visual-thumb" title="${esc(x.domain||x.url)}"><img src="${esc(x.url)}" alt="${esc(x.alt||`صورة بحث ${i+1}`)}" loading="eager" referrerpolicy="no-referrer"></span>`).join("");box.querySelectorAll("img").forEach(img=>img.addEventListener("error",()=>{if(img.parentElement)img.parentElement.style.display="none"},{once:true}))}
-async function remoteImageToDataUrl(url){try{const r=await fetch(url,{signal:controller?.signal,mode:"cors",credentials:"omit",referrerPolicy:"no-referrer"});if(!r.ok)return null;const type=r.headers.get("content-type")||"";if(!type.startsWith("image/"))return null;const blob=await r.blob();if(blob.size>4*1024*1024)return null;return await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.onerror=()=>rej(fr.error);fr.readAsDataURL(blob)})}catch{return null}}
-async function prepareVisionImages(images=[]){const limit=Math.max(1,Math.min(6,+state.settings.visualImageLimit||4)),selected=[];for(const img of images){if(selected.length>=limit)break;if(currentRunVisionImages.some(x=>x.url===img.url))continue;const item={...img,dataUrl:null};if(state.settings.provider==="gemini"){item.dataUrl=await remoteImageToDataUrl(img.url);if(!item.dataUrl)continue}selected.push(item);currentRunVisionImages.push(item);renderActivityImages(currentRunVisionImages)}return selected}
-function visualContextForOpenRouter(items=[]){if(!items.length)return null;return{role:"user",content:[{type:"text",text:"صور مرتبطة مباشرة ببحث الويب الحالي. استخدمها كسياق بصري فقط عندما تكون مفيدة، ولا تفترض أن كل صورة دقيقة."},...items.map(x=>({type:"image_url",image_url:{url:x.dataUrl||x.url}}))]}}
-function visualContextForGemini(items=[]){const parts=[{text:"صور مرتبطة مباشرة ببحث الويب الحالي. استخدمها كسياق بصري فقط عندما تكون مفيدة، ولا تفترض أن كل صورة دقيقة."}];for(const x of items){if(!x.dataUrl)continue;const d=dataUrlPayload(x.dataUrl);if(d)parts.push({inlineData:d})}return parts.length>1?{role:"user",parts}:null}
+/* ---------- Vision image format safety ---------- */
+/**
+ * Providers accept only a small set of image formats (webp, png, jpeg, gif) and
+ * reject the ENTIRE request with "You have uploaded an unsupported image" when
+ * any part violates that. Two things made that error easy to hit:
+ *
+ *  1. A remote URL's declared Content-Type is not trustworthy. Web search
+ *     results regularly serve AVIF/SVG/BMP/ICO bytes under an image/jpeg
+ *     header, or return an HTML error page with an image content type.
+ *  2. Attachments are persisted in chat history, so ONE bad image poisoned
+ *     every later request in the conversation, not just the turn that added it.
+ *     That is why the failure showed up as a high message index.
+ *
+ * So the format is decided by sniffing the actual bytes, and images are filtered
+ * again on the way out of history. Dropping one image is always better than
+ * failing the whole reply.
+ */
+const VISION_MIME_ALLOW=new Set(["image/png","image/jpeg","image/gif","image/webp"]);
+const VISION_URL_EXT=/\.(?:png|jpe?g|gif|webp)(?:[?#]|$)/i;
+
+/** Canonical mime for known aliases; null when unsupported. */
+function normalizeVisionMime(mime){
+ const m=String(mime||"").trim().toLowerCase().split(";")[0];
+ if(m==="image/jpg"||m==="image/pjpeg")return "image/jpeg";
+ if(m==="image/x-png")return "image/png";
+ return VISION_MIME_ALLOW.has(m)?m:null;
+}
+
+/**
+ * Identify an image from its leading bytes (magic numbers). Returns a supported
+ * mime, or null for anything unsupported: AVIF, SVG, BMP, ICO, TIFF, or an HTML
+ * error page served with an image content type.
+ */
+function sniffImageMime(base64){
+ const clean=String(base64||"").replace(/\s+/g,"");
+ if(clean.length<24)return null;
+ let bytes;
+ try{
+  const bin=atob(clean.slice(0,24));
+  bytes=Array.from(bin,c=>c.charCodeAt(0)&255);
+ }catch{return null}
+ const ascii=(from,len)=>String.fromCharCode(...bytes.slice(from,from+len));
+ if(bytes[0]===0x89&&ascii(1,3)==="PNG")return "image/png";
+ if(bytes[0]===0xFF&&bytes[1]===0xD8&&bytes[2]===0xFF)return "image/jpeg";
+ if(ascii(0,4)==="GIF8")return "image/gif";
+ if(ascii(0,4)==="RIFF"&&ascii(8,4)==="WEBP")return "image/webp";
+ return null;
+}
+
+/**
+ * Validate a data URL for vision use and return it with a corrected mime, or
+ * null when the bytes are not a supported image. The sniffed type wins over the
+ * declared type, because the declared type is the one that tends to be wrong.
+ */
+function safeVisionDataUrl(dataUrl){
+ const m=String(dataUrl||"").match(/^data:([^;,]*);base64,([\s\S]+)$/);
+ if(!m)return null;
+ const sniffed=sniffImageMime(m[2]);
+ if(!sniffed)return null;
+ return `data:${sniffed};base64,${m[2].replace(/\s+/g,"")}`;
+}
+
+/** Remote URLs are only forwarded when the extension looks like a supported format. */
+function safeVisionUrl(url){
+ const u=String(url||"").trim();
+ if(u.startsWith("data:"))return safeVisionDataUrl(u);
+ if(!/^https?:\/\//i.test(u))return null;
+ return VISION_URL_EXT.test(u)?u:null;
+}
+
+/** Best safe representation of an image item, or null to drop it. */
+function visionImageSource(item={}){
+ return safeVisionDataUrl(item.dataUrl||item.data)||safeVisionUrl(item.url)||null;
+}
+
+async function remoteImageToDataUrl(url){try{const r=await fetch(url,{signal:controller?.signal,mode:"cors",credentials:"omit",referrerPolicy:"no-referrer"});if(!r.ok)return null;const blob=await r.blob();if(!blob.size||blob.size>4*1024*1024)return null;const raw=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.onerror=()=>rej(fr.error);fr.readAsDataURL(blob)});return safeVisionDataUrl(raw)}catch{return null}}
+async function prepareVisionImages(images=[]){const limit=Math.max(1,Math.min(6,+state.settings.visualImageLimit||4)),selected=[];for(const img of images){if(selected.length>=limit)break;if(currentRunVisionImages.some(x=>x.url===img.url))continue;const item={...img,dataUrl:null};item.dataUrl=await remoteImageToDataUrl(img.url);if(!item.dataUrl&&(state.settings.provider==="gemini"||!safeVisionUrl(img.url)))continue;selected.push(item);currentRunVisionImages.push(item);renderActivityImages(currentRunVisionImages)}return selected}
+function visualContextForOpenRouter(items=[]){if(!items.length)return null;if(!items.some(x=>visionImageSource(x)))return null;return{role:"user",content:[{type:"text",text:"صور مرتبطة مباشرة ببحث الويب الحالي. استخدمها كسياق بصري فقط عندما تكون مفيدة، ولا تفترض أن كل صورة دقيقة."},...items.map(x=>visionImageSource(x)).filter(Boolean).map(url=>({type:"image_url",image_url:{url}}))]}}
+function visualContextForGemini(items=[]){const parts=[{text:"صور مرتبطة مباشرة ببحث الويب الحالي. استخدمها كسياق بصري فقط عندما تكون مفيدة، ولا تفترض أن كل صورة دقيقة."}];for(const x of items){const safe=safeVisionDataUrl(x.dataUrl);if(!safe)continue;const d=dataUrlPayload(safe);if(d)parts.push({inlineData:d})}return parts.length>1?{role:"user",parts}:null}
 function safeProviderErrorText(raw,provider="AI"){const text=String(raw||"").trim();if(!text)return `${provider} لم يُرجع تفاصيل للخطأ`;if(/<!doctype\s+html|<html[\s>]/i.test(text))return `${provider} رجّع صفحة HTML بدل استجابة API. تحقق من إعدادات المزود أو حالته ثم جرّب مرة أخرى.`;return text.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,240)||`${provider} request failed`}
 function appApiHeaders(extra={}){return appAccessKey?{...extra,"X-AiWay-Access-Key":appAccessKey}:extra}
 async function exaSearchText(query,onProgress){const headers=appApiHeaders({Accept:"text/plain"});if(exaApiKey)headers["X-AiWay-Exa-Key"]=exaApiKey;const r=await fetch(`/api/search?q=${encodeURIComponent(query)}`,{signal:controller?.signal,headers});if(!r.ok){const err=await r.text();throw new Error(`Search ${r.status}: ${err.slice(0,180)}`)}let t="";if(r.body?.getReader){const reader=r.body.getReader(),decoder=new TextDecoder();while(true){const {value,done}=await reader.read();if(done)break;if(value)t+=decoder.decode(value,{stream:true});if(t.length>120000)t=t.slice(0,120000);onProgress?.(t)}t+=decoder.decode()}else t=await r.text();return t}
@@ -1396,9 +1471,9 @@ function sanitizedAssistantToolCall(call){const parsed=stableToolArgs(call?.func
 function dataUrlPayload(dataUrl){const m=String(dataUrl||"").match(/^data:([^;,]+);base64,([\s\S]+)$/);return m?{mimeType:m[1],data:m[2]}:null}
 function cleanAttachment(a){return{name:a.name,type:a.type,kind:a.kind,data:a.data,text:a.text,size:a.size,manifest:a.manifest,fileCount:a.fileCount,importedCount:a.importedCount,skippedCount:a.skippedCount,artifactId:a.artifactId,preview:a.preview,chars:a.chars}}
 function artifactRefPrompt(a){return `--- ARTIFACT FILE: ${a.name} ---\nThe complete source is stored losslessly in Artifacts${a.artifactId?` (id: ${a.artifactId})`:""}. Total characters: ${Number(a.chars||0).toLocaleString("en-US")}. The preview below is intentionally partial and is NOT the complete file. Use project_search to locate relevant code, then artifact_read with name/id and offset/maxChars. Continue reading until hasMore=false whenever the task requires the complete file.\n\nPREVIEW:\n${a.preview||"(preview unavailable)"}\n--- END ARTIFACT PREVIEW ---`}
-function geminiPartsForMessage(m){const parts=[];if(m.text)parts.push({text:m.text});for(const a of m.attachments||[]){if(a.kind==="text")parts.push({text:`\n\n--- FILE: ${a.name} ---\n${a.text||""}\n--- END FILE ---`});else if(a.kind==="artifact_ref")parts.push({text:`\n\n${artifactRefPrompt(a)}`});else if(a.kind==="project")parts.push({text:`\n\n--- IMPORTED ZIP PROJECT: ${a.name} ---\n${a.manifest||"Project files were imported into Artifacts. Use project_search and artifact_read to inspect exact source only as needed."}\n--- END PROJECT INDEX ---`});else if((a.kind==="image"||a.kind==="pdf")&&a.data){const d=dataUrlPayload(a.data);if(d)parts.push({inlineData:d})}}return parts.length?parts:[{text:"حلل المرفقات."}]}
+function geminiPartsForMessage(m){const parts=[];if(m.text)parts.push({text:m.text});for(const a of m.attachments||[]){if(a.kind==="text")parts.push({text:`\n\n--- FILE: ${a.name} ---\n${a.text||""}\n--- END FILE ---`});else if(a.kind==="artifact_ref")parts.push({text:`\n\n${artifactRefPrompt(a)}`});else if(a.kind==="project")parts.push({text:`\n\n--- IMPORTED ZIP PROJECT: ${a.name} ---\n${a.manifest||"Project files were imported into Artifacts. Use project_search and artifact_read to inspect exact source only as needed."}\n--- END PROJECT INDEX ---`});else if(a.kind==="image"&&a.data){const safe=safeVisionDataUrl(a.data);if(safe){const d=dataUrlPayload(safe);if(d)parts.push({inlineData:d})}else parts.push({text:`\n\n[تم تجاهل الصورة ${a.name||""}: الصيغة غير مدعومة (المدعوم: PNG, JPEG, GIF, WebP).]`})}else if(a.kind==="pdf"&&a.data){const d=dataUrlPayload(a.data);if(d)parts.push({inlineData:d})}}return parts.length?parts:[{text:"حلل المرفقات."}]}
 function geminiContentsFromChat(messages){return messages.filter(m=>m.role==="user"||m.role==="assistant").map(m=>({role:m.role==="assistant"?"model":"user",parts:m.role==="user"?geminiPartsForMessage(m):[{text:m.text||""}]}))}
-function openRouterContentForMessage(m){if(m.role!=="user")return m.text||"";const hasMedia=(m.attachments||[]).some(a=>a.kind==="image"||a.kind==="pdf");const hasTextFiles=(m.attachments||[]).some(a=>a.kind==="text"||a.kind==="artifact_ref");const hasProject=(m.attachments||[]).some(a=>a.kind==="project");if(!hasMedia&&!hasTextFiles&&!hasProject)return m.text||"";const content=[{type:"text",text:m.text||"حلل المرفقات."}];for(const a of m.attachments||[]){if(a.kind==="text")content.push({type:"text",text:`--- FILE: ${a.name} ---\n${a.text||""}\n--- END FILE ---`});else if(a.kind==="artifact_ref")content.push({type:"text",text:artifactRefPrompt(a)});else if(a.kind==="project")content.push({type:"text",text:`--- IMPORTED ZIP PROJECT: ${a.name} ---\n${a.manifest||"Project files were imported into Artifacts. Use project_search and artifact_read to inspect exact source only as needed."}\n--- END PROJECT INDEX ---`});else if(a.kind==="image"&&a.data)content.push({type:"image_url",image_url:{url:a.data}});else if(a.kind==="pdf"&&a.data)content.push({type:"file",file:{filename:a.name,file_data:a.data}})}return content}
+function openRouterContentForMessage(m){if(m.role!=="user")return m.text||"";const hasMedia=(m.attachments||[]).some(a=>a.kind==="image"||a.kind==="pdf");const hasTextFiles=(m.attachments||[]).some(a=>a.kind==="text"||a.kind==="artifact_ref");const hasProject=(m.attachments||[]).some(a=>a.kind==="project");if(!hasMedia&&!hasTextFiles&&!hasProject)return m.text||"";const content=[{type:"text",text:m.text||"حلل المرفقات."}];for(const a of m.attachments||[]){if(a.kind==="text")content.push({type:"text",text:`--- FILE: ${a.name} ---\n${a.text||""}\n--- END FILE ---`});else if(a.kind==="artifact_ref")content.push({type:"text",text:artifactRefPrompt(a)});else if(a.kind==="project")content.push({type:"text",text:`--- IMPORTED ZIP PROJECT: ${a.name} ---\n${a.manifest||"Project files were imported into Artifacts. Use project_search and artifact_read to inspect exact source only as needed."}\n--- END PROJECT INDEX ---`});else if(a.kind==="image"&&a.data){const safe=safeVisionDataUrl(a.data);if(safe)content.push({type:"image_url",image_url:{url:safe}});else content.push({type:"text",text:`[تم تجاهل الصورة ${a.name||""}: الصيغة غير مدعومة (المدعوم: PNG, JPEG, GIF, WebP).]`})}else if(a.kind==="pdf"&&a.data)content.push({type:"file",file:{filename:a.name,file_data:a.data}})}return content}
 function openRouterMessagesFromChat(messages){return messages.filter(m=>m.role==="user"||m.role==="assistant").map(m=>({role:m.role,content:openRouterContentForMessage(m)}))}
 async function readSSE(response,onData){if(!response.body?.getReader)throw new Error("المتصفح لا يدعم Streaming response body");const reader=response.body.getReader(),decoder=new TextDecoder();let buffer="",eventLines=[];const emit=async()=>{if(!eventLines.length)return;const eventName=(eventLines.find(line=>line.startsWith("event:"))||"").slice(6).trim();const data=eventLines.filter(line=>line.startsWith("data:")).map(line=>line.slice(5).replace(/^ /,"")).join("\n");eventLines=[];if(data!=="")await onData(data,eventName)};const consume=async(final=false)=>{while(buffer.length){let idx=-1,len=0;for(let i=0;i<buffer.length;i++){const ch=buffer[i];if(ch==="\n"){idx=i;len=1;break}if(ch==="\r"){if(i===buffer.length-1&&!final)return;idx=i;len=buffer[i+1]==="\n"?2:1;break}}if(idx<0){if(final){eventLines.push(buffer);buffer=""}return}const line=buffer.slice(0,idx);buffer=buffer.slice(idx+len);if(line==="")await emit();else if(!line.startsWith(":"))eventLines.push(line)}};try{while(true){const {done,value}=await reader.read();if(done)break;if(value)buffer+=decoder.decode(value,{stream:true});await consume(false)}buffer+=decoder.decode();await consume(true);await emit()}finally{try{reader.releaseLock()}catch{}}}
 function abortActiveRequest(){const active=controller;if(active&&!active.signal.aborted){try{active.abort()}catch{}}return active}
@@ -1653,7 +1728,7 @@ async function importZipProject(f){
  await renderArtifacts();
  return{name:f.name,type:"application/zip",kind:"project",size:f.size,fileCount:totalEntries,importedCount:saved,skippedCount:skipped,manifest:compactProjectManifest(f.name,entries,skipped,totalEntries)};
 }
-async function readFile(f){if(f.type==="application/zip"||/\.zip$/i.test(f.name))return await importZipProject(f);const max=18*1024*1024;if(f.size>max)throw new Error(`${f.name}: الحد الحالي 18MB للملف الواحد`);if(f.type.startsWith("text/")||/\.(txt|md|mdx|csv|json|jsonc|js|mjs|cjs|jsx|ts|tsx|html|css|scss|py|go|rs|java|c|cpp|h|hpp|php|rb|sh|sql|xml|ya?ml|toml|ini|env)$/i.test(f.name)){const text=await f.text(),items=await idbAll("artifacts"),hit=items.find(x=>x.projectId===state.settings.activeProjectId&&String(x.name||"").toLowerCase()===String(f.name||"").toLowerCase()),saved=await saveArtifactRecord({id:hit?.id,name:f.name,language:inferLanguageFromName(f.name),content:text});await renderArtifacts();return{name:f.name,type:f.type||"text/plain",kind:"artifact_ref",artifactId:saved.id,preview:text.slice(0,6000),chars:text.length,size:f.size}}if(f.type==="application/pdf"||/\.pdf$/i.test(f.name))return{name:f.name,type:"application/pdf",kind:"pdf",data:await fileToDataUrl(f),size:f.size};if(f.type.startsWith("image/"))return{name:f.name,type:f.type||"image/jpeg",kind:"image",data:await fileToDataUrl(f),size:f.size};throw new Error(`${f.name}: النوع غير مدعوم حاليًا`)}
+async function readFile(f){if(f.type==="application/zip"||/\.zip$/i.test(f.name))return await importZipProject(f);const max=18*1024*1024;if(f.size>max)throw new Error(`${f.name}: الحد الحالي 18MB للملف الواحد`);if(f.type.startsWith("text/")||/\.(txt|md|mdx|csv|json|jsonc|js|mjs|cjs|jsx|ts|tsx|html|css|scss|py|go|rs|java|c|cpp|h|hpp|php|rb|sh|sql|xml|ya?ml|toml|ini|env)$/i.test(f.name)){const text=await f.text(),items=await idbAll("artifacts"),hit=items.find(x=>x.projectId===state.settings.activeProjectId&&String(x.name||"").toLowerCase()===String(f.name||"").toLowerCase()),saved=await saveArtifactRecord({id:hit?.id,name:f.name,language:inferLanguageFromName(f.name),content:text});await renderArtifacts();return{name:f.name,type:f.type||"text/plain",kind:"artifact_ref",artifactId:saved.id,preview:text.slice(0,6000),chars:text.length,size:f.size}}if(f.type==="application/pdf"||/\.pdf$/i.test(f.name))return{name:f.name,type:"application/pdf",kind:"pdf",data:await fileToDataUrl(f),size:f.size};if(f.type.startsWith("image/")||/\.(?:png|jpe?g|gif|webp|avif|svg|bmp|ico|tiff?)$/i.test(f.name)){const raw=await fileToDataUrl(f),safe=safeVisionDataUrl(raw);if(!safe)throw new Error(`${f.name}: صيغة الصورة غير مدعومة. المدعوم: PNG وJPEG وGIF وWebP. حوّل الصورة ثم أعد رفعها.`);return{name:f.name,type:safe.slice(5,safe.indexOf(";")),kind:"image",data:safe,size:f.size};}throw new Error(`${f.name}: النوع غير مدعوم حاليًا`)}
 function prettyBytes(n){if(n<1024)return`${n} B`;if(n<1048576)return`${(n/1024).toFixed(1)} KB`;return`${(n/1048576).toFixed(1)} MB`}
 function renderAttachments(){const box=$("#attachments");box.innerHTML=pendingFiles.map((f,i)=>`<div class="filechip"><span>${f.kind==="image"?"🖼️":f.kind==="pdf"?"📄":f.kind==="project"?"🗜️":"📎"} ${esc(f.name)} • ${f.kind==="project"?`${f.importedCount||0} files`:`${prettyBytes(f.size||0)}`}</span><button data-rmfile="${i}">×</button></div>`).join("");syncComposerState()}
 

@@ -50,3 +50,30 @@ behavior changes, so they are left for an explicit follow-up request.
 - `README.md` is a single heading. Consider real setup/deploy docs.
 - Three dated audit files in `docs/` overlap heavily; they are historical records,
   not current specs.
+
+## Vision image formats (fixed)
+
+Providers accept only webp/png/jpeg/gif and reject the **entire request** when
+any part violates that, with:
+
+> You have uploaded an unsupported image...
+
+The failure reported a high message index (`.messages[20]`) because attachments
+are persisted in chat history: one bad image broke every later request in the
+conversation, not just the turn that introduced it.
+
+Three causes, all fixed in `assets/app.js`:
+
+1. `remoteImageToDataUrl` trusted the remote `Content-Type`. Search results
+   routinely serve AVIF/SVG/BMP bytes under `image/jpeg`. Format is now decided
+   by sniffing magic numbers (`sniffImageMime`).
+2. Non-Gemini providers received the raw remote URL unvalidated. URLs now need a
+   supported extension (`safeVisionUrl`).
+3. History was never filtered. `geminiPartsForMessage` and
+   `openRouterContentForMessage` now drop unsupported images and disclose the
+   drop as text, so a poisoned conversation self-heals.
+
+Rules to preserve: never gate image format on a declared mime alone, and never
+forward an image URL to a provider without `safeVisionUrl`/`safeVisionDataUrl`.
+Dropping one image is always preferable to failing the whole reply. Covered by
+`tests/vision-image-format.mjs`.
