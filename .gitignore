@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit real environment values (.env.example IS tracked)
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel/
+
+# Build / cache output
+dist/
+build/
+.cache/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+supervisord.log
+supervisord.pid
+supervisor.sock
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
