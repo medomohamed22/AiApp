@@ -6,9 +6,9 @@ const must=[
   'preview:text.slice(0,6000)',
   'hasMore:end<full.length',
   'nextOffset:end<full.length?end:null',
-  'maxChars=Math.max(1000,Math.min(60000',
+  'effectiveMaxChars=Math.max(1000,Math.min(220000',
   'hasAttachedArtifact',
-  '["project_search","artifact_read","artifact_list"]'
+  '["project_search","artifact_read"]'
 ];
 for(const x of must)if(!src.includes(x))throw new Error(`missing lossless artifact contract: ${x}`);
 if(src.includes('(await f.text()).slice(0,180000)'))throw new Error('plain text upload is still destructively truncated at 180k');
