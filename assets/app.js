@@ -103,7 +103,65 @@ version: 1.0
 tags: [coding, testing, terminal, debugging]
 ---
 # Coding Agent
-Inspect before editing. Use project_search first, artifact_read for exact files, artifact_save for minimal changes. Use virtual_terminal for repository-style inspection and code_execute for isolated JavaScript checks. Run validators/evaluators after changes. Preserve existing behavior unless the request explicitly changes it.`
+Inspect before editing. Use project_search first, artifact_read for exact files, artifact_save for minimal changes. Use virtual_terminal for repository-style inspection and code_execute for isolated JavaScript checks. Run validators/evaluators after changes. Preserve existing behavior unless the request explicitly changes it.`,
+`---
+name: code-review
+description: Review generated code before delivering the final version. Covers correctness, security, and UI/UX with the js_validator, security_audit and ux_review tools. Use whenever code is written, edited, refactored, debugged or is about to be published.
+version: 1.0
+tags: [code, review, security, correctness, ux, quality]
+---
+# Code Review — Before The Final Code
+
+## When to use
+Use before you present or publish any non-trivial code: new features, edits, refactors, bug fixes, or a pre-publish check. Review the draft, fix what the review finds, then deliver the corrected version. Never deliver a first draft as the final code.
+
+## The gate
+Run the tools that apply to the code you wrote:
+
+| Code written | Run |
+| --- | --- |
+| JavaScript / TypeScript, or inline \u0060<script>\u0060 | \u0060js_validator\u0060 |
+| Any code at all | \u0060security_audit\u0060 |
+| HTML / CSS / any user-facing UI | \u0060ux_review\u0060 plus \u0060html_css_validator\u0060 |
+
+Two ways to call them:
+1. **Before saving** — pass the draft through the \u0060code\u0060 parameter (\u0060html\u0060 for \u0060ux_review\u0060). Preferred: you fix issues before the file ever exists.
+2. **After saving** — call with no arguments to review every artifact in the active project, or pass \u0060names\u0060 to target specific files.
+
+## Reading the result
+Each result has \u0060summary.blocking\u0060, a per-file \u0060reports\u0060 array and a \u0060recommendation\u0060.
+- \u0060ok:false\u0060 or \u0060blocking > 0\u0060 means **critical or high** findings exist. Fix them, then re-run the same tool to confirm.
+- Every finding carries \u0060file\u0060, \u0060line\u0060, \u0060evidence\u0060, \u0060severity\u0060 and \u0060fix\u0060. Use the line and evidence to make a targeted edit with \u0060artifact_edit\u0060; do not rewrite whole files to satisfy one finding.
+- Medium and low findings do not block. Judge each one: fix the ones that apply to this code, and say plainly which you are leaving and why.
+- Read \u0060notes\u0060. It reports limitations, such as TypeScript or JSX syntax the structural check cannot fully verify. A clean report on unverifiable input is not proof of correctness.
+
+## Severity policy
+| Severity | Action |
+| --- | --- |
+| critical | Never deliver. Fix now. |
+| high | Fix before delivering. |
+| medium | Fix if it applies; otherwise state the reason. |
+| low / info | Optional. Mention only if useful. |
+
+## The three dimensions
+**Correctness** — Does it do what was asked, and does it survive bad input? Look for unhandled promise rejections, unguarded \u0060JSON.parse\u0060, empty \u0060catch\u0060 blocks that hide failures, off-by-one errors, wrong async ordering, and state mutated where a copy was intended.
+
+**Security** — Findings are mapped to OWASP Top 10:2025. Before rewriting, confirm the sink is actually reachable from attacker-controlled input; a hardcoded value you set yourself is not the same risk as a request parameter. Report a finding as a real risk only when you can name the input path. Never invent vulnerabilities to look thorough, and never dismiss a real one because it is inconvenient.
+
+**UI / UX** — Contrast, visible focus, keyboard reachability, labelled form controls, correct heading order, safe \u0060target="_blank"\u0060, working zoom, and RTL mirroring for Arabic content. \u0060ux_review\u0060 reads structure statically; use \u0060browser_preview\u0060 and \u0060responsive_test\u0060 for rendered geometry and overflow.
+
+## What not to do
+- Do not claim you reviewed code you did not run the tools on.
+- Do not treat static analysis as a substitute for running the code. Use \u0060code_execute\u0060 or \u0060sandbox_exec\u0060 for behavior.
+- Do not report noise: no findings about denial of service, rate limiting, resource exhaustion, or input validation with no demonstrated impact. Report defects with a concrete consequence.
+- Do not silence a finding by deleting the check or widening a type. Fix the cause.
+
+## Verdict
+Close with an explicit verdict, in the user's language:
+- **Ready** — no blocking findings; state what was checked.
+- **Fixed** — blocking findings were found and repaired; list what changed and confirm the re-run is clean.
+- **Blocked** — something cannot be fixed here; name it and say what is needed.
+Always report what was checked and what remains unverified. An honest limitation is more useful than a false clean bill of health.`
 ];
 
 const REASONING_LABELS={off:"فوري",medium:"متوسط",high:"عالٍ",xhigh:"عالٍ جدًا"};
@@ -119,7 +177,7 @@ const AGENT_MODES={
  security:{label:"Security Review",prompt:"ركز على الأمان: الأسرار، التحقق من الإدخال، auth، الصلاحيات، XSS/CSRF/SSRF، تسريب البيانات واعتماديات الطرف الثالث. قدّم إصلاحات عملية واحفظها كملفات فقط إذا طلب المستخدم التعديل."},
  review:{label:"Code Review",prompt:"راجع الكود بدون تعديل افتراضيًا: رتب المشاكل حسب الخطورة، اشرح الأثر واقترح إصلاحًا. عدّل الملفات فقط إذا طلب المستخدم تنفيذ الإصلاحات."}
 };
-const defaults={settings:{provider:"opencode",model:"mimo-v2.5-free",systemPrompt:DEFAULT_SYSTEM,temperature:.35,maxRounds:9,maxOutputTokens:8192,historyLimit:30,webEnabled:false,toolsEnabled:true,skillsAuto:true,memoryEnabled:true,activeProjectId:null,contextMode:"smart",contextCharBudget:50000,modelRouting:"fixed",fastModel:"",qualityModel:"",searchRouting:"auto",visualImageLimit:4,defaultAgentMode:"normal",hermesMode:"native",orchestration:"smart",verifierEnabled:true,subagentsEnabled:true,selfLearningSkills:true,skillLearningThreshold:82,reasoningLevel:"off",skillRouter:true,skillChains:true,mcpRouter:true,memoryConsolidation:true,workspaceAwareness:true,toolReliability:true,agentInspector:true}, toolPermissions:{tool_search:"auto",skill_list:"auto",skill_read:"auto",skill_resource_list:"auto",skill_resource_read:"auto",web_search:"ask",memory_save:"auto",memory_search:"auto",session_search:"auto",artifact_list:"auto",artifact_read:"auto",project_search:"auto",artifact_save:"ask",artifact_edit:"ask",artifact_delete:"ask",virtual_terminal:"auto",code_execute:"ask",todo_plan:"auto",delegate_task:"ask",agent_evaluate:"auto",skill_learn:"ask",sandbox_status:"auto",sandbox_sync:"ask",sandbox_read:"auto",sandbox_write:"ask",sandbox_exec:"ask",browser_navigate:"ask",browser_follow:"ask",browser_extract:"auto",browser_preview:"auto",responsive_test:"auto",html_css_validator:"auto",environment_list:"auto",environment_set:"ask",publish_project:"ask"}};
+const defaults={settings:{provider:"opencode",model:"mimo-v2.5-free",systemPrompt:DEFAULT_SYSTEM,temperature:.35,maxRounds:9,maxOutputTokens:8192,historyLimit:30,webEnabled:false,toolsEnabled:true,skillsAuto:true,memoryEnabled:true,activeProjectId:null,contextMode:"smart",contextCharBudget:50000,modelRouting:"fixed",fastModel:"",qualityModel:"",searchRouting:"auto",visualImageLimit:4,defaultAgentMode:"normal",hermesMode:"native",orchestration:"smart",verifierEnabled:true,subagentsEnabled:true,selfLearningSkills:true,skillLearningThreshold:82,reasoningLevel:"off",skillRouter:true,skillChains:true,mcpRouter:true,memoryConsolidation:true,workspaceAwareness:true,toolReliability:true,agentInspector:true}, toolPermissions:{tool_search:"auto",skill_list:"auto",skill_read:"auto",skill_resource_list:"auto",skill_resource_read:"auto",web_search:"ask",memory_save:"auto",memory_search:"auto",session_search:"auto",artifact_list:"auto",artifact_read:"auto",project_search:"auto",artifact_save:"ask",artifact_edit:"ask",artifact_delete:"ask",virtual_terminal:"auto",code_execute:"ask",todo_plan:"auto",delegate_task:"ask",agent_evaluate:"auto",skill_learn:"ask",sandbox_status:"auto",sandbox_sync:"ask",sandbox_read:"auto",sandbox_write:"ask",sandbox_exec:"ask",browser_navigate:"ask",browser_follow:"ask",browser_extract:"auto",browser_preview:"auto",responsive_test:"auto",html_css_validator:"auto",js_validator:"auto",security_audit:"auto",ux_review:"auto",environment_list:"auto",environment_set:"ask",publish_project:"ask"}};
 let db,state=structuredClone(defaults),activeChatId=null,pendingFiles=[],controller=null,editingSkillId=null,editingProposalId=null,editingMcpId=null,editingProjectId=null,editingArtifactId=null,editingHttpToolId=null,askResolver=null,loadedModels=[],loadedModelDetails={},hermesCapabilities=null,slashItems=[],slashIndex=0,streamText="",streamDisplayText="",streamRAF=0,streamLastPaint=0,streamActivityKind="",streamSearchQuery="",followStream=true,runtimeModelOverride="",currentRunSources=[],currentRunVisionImages=[],currentRunActivity=[],runtimeContextPlan=null,runtimeUserQuery="",currentSearchRoute="web",runStartedAt=0,firstTextAt=0,publishAccessKey="",appAccessKey="",exaApiKey="",secretResolver=null,currentBrowserSnapshot=null,currentAgentPlan=null,currentRunInspector=null;
 
 /* ---------- IndexedDB ---------- */
@@ -238,6 +296,9 @@ const nativeDefs={
  artifact_delete:{description:"Delete one artifact from the active project by exact name. Use only when the user explicitly asks to remove a file. Requires confirmation and cannot delete a file that is currently the publish entry point (index.html) unless the user explicitly asked for that.",parameters:{type:"object",properties:{name:{type:"string",description:"Exact artifact name to delete"}},required:["name"]}},
  browser_preview:{description:"Render an HTML artifact in an isolated off-screen browser preview (scripts disabled) and inspect the rendered DOM/layout. Returns overflow, heading, form, image, link, tap-target and viewport findings. Use after UI changes before publishing.",parameters:{type:"object",properties:{name:{type:"string",description:"HTML artifact name; defaults to index.html"},width:{type:"number",description:"Viewport width; default 390"},height:{type:"number",description:"Viewport height; default 844"}}}},
  responsive_test:{description:"Test an HTML artifact at common mobile/tablet/desktop viewport widths and report horizontal overflow, undersized tap targets, fixed-width risks and responsive-layout findings.",parameters:{type:"object",properties:{name:{type:"string",description:"HTML artifact name; defaults to index.html"},widths:{type:"array",items:{type:"number"},description:"Optional viewport widths. Defaults to 360,390,768,1024,1440"}}}},
+ js_validator:{description:"Review JavaScript/TypeScript for structural and correctness defects before writing the final code. Checks bracket balance, unterminated literals, unhandled promise rejections, unguarded JSON.parse, empty catch blocks, assignment inside conditions, duplicate switch cases, await-in-loop and other reliability bugs. Reads inline <script> inside HTML artifacts too.",parameters:{type:"object",properties:{names:{type:"array",items:{type:"string"},description:"Optional exact artifact names; otherwise reviews every JS/TS artifact plus inline scripts in the active project"},code:{type:"string",description:"Review this snippet directly instead of stored artifacts. Use this to check code BEFORE saving it."},name:{type:"string",description:"Label for the code parameter, e.g. app.js. Use a .ts/.tsx name so TypeScript limitations are reported accurately."}}}},
+ security_audit:{description:"Security review of code aligned to OWASP Top 10:2025. Detects injection sinks (eval, innerHTML, SQL/command string building), broken access control, cryptographic failures (weak hashes, disabled TLS verification, JWT alg none), hardcoded secrets and API keys, prototype pollution, unsafe postMessage, supply-chain risks and sensitive data logging. Every finding includes file, line, evidence, OWASP category and a fix.",parameters:{type:"object",properties:{names:{type:"array",items:{type:"string"},description:"Optional exact artifact names; otherwise audits all artifacts in the active project"},code:{type:"string",description:"Audit this snippet directly instead of stored artifacts. Use this to check code BEFORE saving it."},name:{type:"string",description:"Label for the code parameter"}}}},
+ ux_review:{description:"Accessibility and UI/UX review of HTML/CSS before writing the final code. Checks WCAG colour contrast, missing focus-visible styles, hover without focus, reduced-motion support, tap-target and font sizes, form labels/autocomplete, landmarks and heading order, image alt/dimensions, link text quality, target=_blank safety, viewport and zoom, plus RTL mirroring for Arabic content. Complements browser_preview/responsive_test, which cover rendered geometry.",parameters:{type:"object",properties:{names:{type:"array",items:{type:"string"},description:"Optional exact artifact names; otherwise reviews all HTML/CSS artifacts in the active project"},html:{type:"string",description:"Review this markup directly instead of stored artifacts. Use this to check markup BEFORE saving it."},name:{type:"string",description:"Label for the html parameter"},rtl:{type:"boolean",description:"Force right-to-left rules on or off. Auto-detected from Arabic/Hebrew/Persian text when omitted."}}}},
  html_css_validator:{description:"Validate HTML/CSS artifacts before publish. Checks document structure, duplicate IDs, missing accessibility attributes, risky links/forms, CSS brace balance, parse failures and common frontend mistakes.",parameters:{type:"object",properties:{names:{type:"array",items:{type:"string"},description:"Optional exact artifact names; otherwise validates all HTML/CSS artifacts in the active project"}}}},
  environment_list:{description:"List Environment Variable NAMES configured on the active project current Vercel project. Never returns secret values. Use before adding a backend integration to check whether required keys exist.",parameters:{type:"object",properties:{}}},
  environment_set:{description:"Securely create or update one Environment Variable on the active Vercel project. Pass ONLY the variable name and optional service/help text; AiWay opens a separate password prompt for the user and the model never receives the value. Use for API keys such as EXA_API_KEY. Requires an already-created Vercel project; for a first publish put required names in publish_project.environmentVariables instead.",parameters:{type:"object",properties:{key:{type:"string",description:"Environment variable name only, e.g. EXA_API_KEY"},service:{type:"string",description:"Optional provider name such as Exa, Stripe, Resend"},reason:{type:"string",description:"Short user-facing reason this secret is required"}},required:["key"]}},
@@ -281,7 +342,7 @@ function normalizeWords(text=""){return [...new Set(String(text||"").toLowerCase
 function textAffinity(query,haystack){const q=normalizeWords(query),h=String(haystack||"").toLowerCase();if(!q.length)return 0;let score=0;for(const w of q){if(h.includes(w))score+=w.length>6?3:2}return score/q.length}
 function skillRouteScore(skill,userText,mode="normal") {const x=skillInfo(skill),hay=`${x.name} ${x.description} ${parseFrontmatter(skill.content).meta.tags||""}`.toLowerCase();let score=textAffinity(userText,hay)*10;if(String(userText).match(new RegExp(`(?:^|\\s)/${x.name}(?:\\s|$)`,`i`)))score+=100;if(/ui|ux|frontend|design|responsive/.test(hay)&&/(ui|ux|frontend|design|واجهة|تصميم|responsive|css|html)/i.test(userText))score+=24;if(/security/.test(hay)&&mode==="security")score+=25;if(/coding|debug|test/.test(hay)&&["coding","debug","build","review"].includes(mode))score+=14;return score}
 async function routeSkills(userText,mode="normal",limit=3){const skills=(await idbAll("skills")).filter(x=>x.enabled!==false);return skills.map(s=>({s,score:skillRouteScore(s,userText,mode)})).filter(x=>x.score>2).sort((a,b)=>b.score-a.score).slice(0,limit).map((x,i)=>({...x.s,_routeScore:+x.score.toFixed(1),_routeRank:i+1}))}
-function buildSkillChain(routed=[],userText=""){if(!routed.length)return[];const names=routed.map(x=>skillInfo(x).name),chain=[];if(/research|بحث|compare|قارن/i.test(userText)&&names.includes("deep-research"))chain.push("deep-research");if(/ui|ux|واجهة|تصميم|frontend/i.test(userText)&&names.includes("ui-ux-pro-max"))chain.push("ui-ux-pro-max");if(/bug|error|broken|fails?|crash|regression|خطأ|عطل|مشكلة|باج/i.test(userText)&&names.includes("root-cause-debugging"))chain.push("root-cause-debugging");if(/csv|json|dataset|parse|data|رفع|بيانات|جدول/i.test(userText)&&names.includes("data-processing"))chain.push("data-processing");if(/code|build|implement|debug|اصلح|نفذ|برمج/i.test(userText)&&names.includes("coding-agent"))chain.push("coding-agent");if(/security|أمان|امن/i.test(userText)&&names.includes("secure-coding"))chain.push("secure-coding");for(const n of names)if(!chain.includes(n))chain.push(n);return chain.slice(0,3)}
+function buildSkillChain(routed=[],userText=""){if(!routed.length)return[];const names=routed.map(x=>skillInfo(x).name),chain=[];if(/research|بحث|compare|قارن/i.test(userText)&&names.includes("deep-research"))chain.push("deep-research");if(/ui|ux|واجهة|تصميم|frontend/i.test(userText)&&names.includes("ui-ux-pro-max"))chain.push("ui-ux-pro-max");if(/bug|error|broken|fails?|crash|regression|خطأ|عطل|مشكلة|باج/i.test(userText)&&names.includes("root-cause-debugging"))chain.push("root-cause-debugging");if(/csv|json|dataset|parse|data|رفع|بيانات|جدول/i.test(userText)&&names.includes("data-processing"))chain.push("data-processing");if(/code|build|implement|debug|اصلح|نفذ|برمج/i.test(userText)&&names.includes("coding-agent"))chain.push("coding-agent");if(/security|أمان|امن/i.test(userText)&&names.includes("secure-coding"))chain.push("secure-coding");if(/code|review|audit|refactor|publish|كود|مراجعة|راجع|فحص|تدقيق|نشر/i.test(userText)&&names.includes("code-review"))chain.push("code-review");for(const n of names)if(!chain.includes(n))chain.push(n);return chain.slice(0,3)}
 function classifyMcpCapability(tool={},server={}){const t=`${server.name||""} ${server.url||""} ${tool.name||""} ${tool.description||""}`.toLowerCase();if(/github|repo|pull.?request|issue/.test(t))return"github";if(/file|filesystem|directory|folder/.test(t))return"files";if(/sql|database|postgres|mysql|sqlite|mongo/.test(t))return"database";if(/browser|web|url|http|scrape/.test(t))return"browser";if(/search|query|find/.test(t))return"search";if(/slack|message|channel|chat/.test(t))return"messaging";if(/notion|document|page|wiki/.test(t))return"docs";return"general"}
 function toolStatId(tool){return tool.source==="mcp"?`mcp:${tool.serverId}:${tool.originalName}`:tool.source==="http"?`http:${tool.httpId}`:`native:${tool.name}`}
 async function getToolStat(tool){return await idbGet("toolstats",toolStatId(tool))||{id:toolStatId(tool),calls:0,success:0,errors:0,totalMs:0,score:75,lastUsed:0}}
@@ -385,7 +446,7 @@ function nativeToolRouteScore(name,plan,hasProjectFiles=false){
  add(name==='memory_search'&&s.memorySearch,100);add(name==='session_search'&&s.sessionSearch,100);add(name==='memory_save'&&s.memorySave,100);
  add(name==='artifact_read'&&hasProjectFiles&&s.artifactRead,92);add(name==='project_search'&&hasProjectFiles&&s.artifactRead,88);add(name==='artifact_list'&&hasProjectFiles&&s.artifactRead,62);
  add(name==='artifact_save'&&i.wantsArtifacts&&s.artifactWrite,86);
- add(name==='browser_preview'&&i.frontend&&s.preview,95);add(name==='responsive_test'&&i.frontend&&s.validate,88);add(name==='html_css_validator'&&i.frontend&&s.validate,90);
+ add(name==='browser_preview'&&i.frontend&&s.preview,95);add(name==='responsive_test'&&i.frontend&&s.validate,88);add(name==='html_css_validator'&&i.frontend&&s.validate,90);add(name==='js_validator'&&s.validate,92);add(name==='security_audit'&&s.validate,91);add(name==='ux_review'&&i.frontend&&s.validate,89);
  add(name==='virtual_terminal'&&i.coding&&s.execute,84);add(name==='code_execute'&&i.coding&&s.execute,80);
  add(name==='sandbox_status'&&i.coding&&s.execute,55);add(name==='sandbox_sync'&&i.coding&&s.execute,75);add(name==='sandbox_read'&&i.coding&&s.artifactRead&&s.execute,64);add(name==='sandbox_write'&&i.coding&&s.artifactWrite&&s.execute,72);add(name==='sandbox_exec'&&i.coding&&s.execute,90);
  add(name==='publish_project'&&s.publish,100);add(name==='environment_list'&&s.publish,72);add(name==='environment_set'&&s.environment,100);
@@ -398,7 +459,7 @@ function nativeToolRouteScore(name,plan,hasProjectFiles=false){
 }
 async function deferredToolCandidates(query="",maxResults=8){
  const q=String(query||"").trim(),limit=Math.max(1,Math.min(12,Number(maxResults)||8)),ranked=[],skills=[];
- const aliases={web_search:'fresh current live internet web research news prices verification official sources',project_search:'project code codebase files inspect source repository local',artifact_read:'read project file artifact source existing',artifact_save:'write edit create update project file artifact',artifact_edit:'edit patch modify replace small change file line surgical',artifact_delete:'delete remove file artifact',browser_preview:'preview render ui webpage layout',responsive_test:'responsive mobile tablet desktop test ui',html_css_validator:'validate html css accessibility frontend',memory_search:'memory recall saved preference context',memory_save:'remember save durable preference decision',session_search:'previous chats conversation history',virtual_terminal:'terminal files grep find project',code_execute:'execute javascript calculation test',sandbox_exec:'shell npm node python build test git command',sandbox_sync:'sync project files sandbox',browser_navigate:'open url website docs browser page',browser_extract:'extract webpage text',publish_project:'publish deploy github vercel production',environment_list:'environment variables secrets configuration',environment_set:'set secret api key environment variable',todo_plan:'plan multi step orchestration',delegate_task:'parallel subagent research analysis',agent_evaluate:'verify evaluate audit correctness security',skill_read:'skill instructions workflow expertise'};
+ const aliases={web_search:'fresh current live internet web research news prices verification official sources',project_search:'project code codebase files inspect source repository local',artifact_read:'read project file artifact source existing',artifact_save:'write edit create update project file artifact',artifact_edit:'edit patch modify replace small change file line surgical',artifact_delete:'delete remove file artifact',browser_preview:'preview render ui webpage layout',responsive_test:'responsive mobile tablet desktop test ui',html_css_validator:'validate html css accessibility frontend',js_validator:'validate javascript typescript js review lint bug correctness parse error promise',security_audit:'security audit owasp vulnerability injection xss sqli secret api key crypto auth review safe',ux_review:'ux ui accessibility a11y contrast wcag focus keyboard rtl arabic design review usability',memory_search:'memory recall saved preference context',memory_save:'remember save durable preference decision',session_search:'previous chats conversation history',virtual_terminal:'terminal files grep find project',code_execute:'execute javascript calculation test',sandbox_exec:'shell npm node python build test git command',sandbox_sync:'sync project files sandbox',browser_navigate:'open url website docs browser page',browser_extract:'extract webpage text',publish_project:'publish deploy github vercel production',environment_list:'environment variables secrets configuration',environment_set:'set secret api key environment variable',todo_plan:'plan multi step orchestration',delegate_task:'parallel subagent research analysis',agent_evaluate:'verify evaluate audit correctness security',skill_read:'skill instructions workflow expertise'};
  for(const [name,d] of Object.entries(nativeDefs)){
   if(name==="tool_search"||(state.toolPermissions[name]||"off")==="off")continue;
   if(name==='delegate_task'&&state.settings.subagentsEnabled===false)continue;if(name==='agent_evaluate'&&state.settings.verifierEnabled===false)continue;if(name==='todo_plan'&&state.settings.orchestration==='off')continue;if(name==='skill_learn'&&state.settings.selfLearningSkills===false)continue;
@@ -615,7 +676,673 @@ async function artifactDelete(args){
  await renderArtifacts();
  return{ok:true,deleted:true,name:hit.name,chars:String(hit.content||"").length};
 }
-async function executeTool(tool,args){if(!await askPermission(tool,args))return{ok:false,error:"User denied tool execution"};if(tool.source==="mcp"){const server=await idbGet("mcp",tool.serverId),original=(server.tools||[]).find(t=>t.name===tool.originalName);return await callMcp(server,original,args)}if(tool.source==="http"){const t=await idbGet("customtools",tool.httpId);return await executeHttpTool(t,args)}switch(tool.name){case"skill_list":{const skills=(await idbAll("skills")).filter(s=>s.enabled!==false).map(skillInfo).map(x=>({name:x.name,description:x.description,version:x.version}));return{skills}}case"skill_read":{const skills=(await idbAll("skills")).filter(s=>s.enabled!==false);const wanted=normalizeSkillName(args.name);const hit=skills.find(s=>normalizeSkillName(skillInfo(s).name)===wanted);if(!hit)return{ok:false,error:`Skill ${String(args.name||"").trim()||"(empty)"} not found`};const resources=(await skillResources(wanted)).map(x=>({path:x.name,chars:String(x.artifact.content||"").length}));return{ok:true,name:skillInfo(hit).name,content:hit.content,resources,instruction:resources.length?"Load only the specific resource needed with skill_resource_read; do not load all resources by default.":"No optional resources are installed for this Skill."}}case"skill_resource_list":{return{ok:true,name:normalizeSkillName(args.name),resources:(await skillResources(args.name)).map(x=>({path:x.name,chars:String(x.artifact.content||"").length,language:x.artifact.language}))}}case"skill_resource_read":{const resources=await skillResources(args.name),wanted=projectPath(args.path||"");const hit=resources.find(x=>projectPath(x.name)===wanted);if(!hit)return{ok:false,error:"Skill resource not found"};const full=String(hit.artifact.content||""),offset=Math.max(0,Math.min(full.length,Math.floor(Number(args.offset)||0))),maxChars=Math.max(1000,Math.min(40000,Math.floor(Number(args.maxChars)||12000))),end=Math.min(full.length,offset+maxChars);return{ok:true,name:normalizeSkillName(args.name),path:hit.name,offset,end,totalChars:full.length,hasMore:end<full.length,nextOffset:end<full.length?end:null,content:full.slice(offset,end)}}case"web_search":return await webSearch(args.query);case"memory_save":{const item={id:uid(),projectId:state.settings.activeProjectId,scope:args.scope==="global"?"global":"project",memoryLayer:String(args.memoryLayer||((args.scope==="global")?"user":"project")),chatId:args.memoryLayer==="session"?activeChatId:null,type:String(args.type||"fact").slice(0,30),pinned:!!args.pinned,text:String(args.text||"").slice(0,4000),tags:Array.isArray(args.tags)?args.tags.slice(0,12):[],updated:Date.now(),created:Date.now()};await idbPut("memory",item);if(state.settings.memoryConsolidation!==false)await consolidateMemories();await renderMemory();return{saved:true,id:item.id,layer:memoryLayer(item)}}case"memory_search":{const q=String(args.query||"").toLowerCase(),items=(await idbAll("memory")).filter(x=>x.scope==="global"||!x.projectId||x.projectId===state.settings.activeProjectId).map(x=>({...x,score:(x.pinned?2:0)+(x.text.toLowerCase().includes(q)?3:0)+((x.tags||[]).some(t=>t.toLowerCase().includes(q))?2:0)})).sort((a,b)=>b.score-a.score||b.updated-a.updated).slice(0,8).map(x=>({text:x.text,tags:x.tags,type:x.type,updated:x.updated}));return{items}}case"session_search":return await sessionSearch(args);case"virtual_terminal":return await virtualTerminal(args);case"code_execute":return await executeJavaScriptSandbox(args);case"todo_plan":return await updateTodoPlan(args);case"delegate_task":return await delegateTask(args);case"agent_evaluate":return await evaluateAgentRun(args);case"skill_learn":return await skillLearn(args);case"sandbox_status":return await sandboxGateway("status");case"sandbox_sync":return await sandboxSyncProject();case"sandbox_read":return await sandboxRead(args);case"sandbox_write":return await sandboxWrite(args);case"sandbox_exec":return await sandboxExec(args);case"browser_navigate":return await browserNavigate(args.url);case"browser_follow":return await browserFollow(args.index);case"browser_extract":return browserExtract(args);case"artifact_list":{const q=String(args.query||"").toLowerCase(),items=(await idbAll("artifacts")).filter(x=>x.projectId===state.settings.activeProjectId&&(!q||`${x.name} ${x.language}`.toLowerCase().includes(q))).slice(0,30).map(x=>({id:x.id,name:x.name,language:x.language,chars:String(x.content||"").length,updated:x.updated}));return{items}}case"artifact_read":{const items=(await idbAll("artifacts")).filter(x=>x.projectId===state.settings.activeProjectId),hit=items.find(x=>x.id===args.id)||items.find(x=>x.name.toLowerCase()===String(args.name||"").toLowerCase());if(!hit)return{error:"Artifact not found"};const full=String(hit.content||""),offset=Math.max(0,Math.min(full.length,Math.floor(Number(args.offset)||0))),maxChars=Math.max(1000,Math.min(60000,Math.floor(Number(args.maxChars)||24000))),end=Math.min(full.length,offset+maxChars);return{id:hit.id,name:hit.name,language:hit.language,offset,end,totalChars:full.length,returnedChars:end-offset,hasMore:end<full.length,nextOffset:end<full.length?end:null,content:full.slice(offset,end)}}case"project_search":return await projectSearchExact(args.query||"",args);case"artifact_save":{const items=await idbAll("artifacts"),hit=items.find(x=>x.projectId===state.settings.activeProjectId&&x.name.toLowerCase()===String(args.name||"").toLowerCase());const obj=await saveArtifactRecord({id:hit?.id,name:args.name,language:args.language||inferLanguageFromName(args.name),content:String(args.content||"")});await renderArtifacts();return{saved:true,id:obj.id,name:obj.name}}case"artifact_edit":return await artifactEdit(args);case"artifact_delete":return await artifactDelete(args);case"browser_preview":return await renderArtifactAudit(args.name||"index.html",args.width||390,args.height||844);case"responsive_test":return await responsiveAudit(args);case"html_css_validator":return await validateHtmlCss(args);case"environment_list":return await listActiveEnvironment();case"environment_set":return await setActiveEnvironment(args);case"publish_project":return await publishActiveProject(args);default:return{error:"Unknown tool"}}}
+/* ---------- Static code review (js_validator / security_audit / ux_review) ---------- */
+/**
+ * Pre-publish static review of generated code.
+ *
+ * html_css_validator only covered HTML/CSS markup. These three tools close the
+ * remaining gaps: JavaScript correctness, security risk, and UI/UX quality.
+ *
+ *   js_validator   - structural parse check plus correctness/reliability defects
+ *   security_audit - OWASP Top 10:2025 aligned findings with code evidence
+ *   ux_review      - accessibility, contrast, interaction-state and RTL review
+ *
+ * Design rules:
+ *  - Every finding carries file, line, evidence and severity. No vague advice.
+ *  - Rules run against a comment/string/regex-masked copy of the source, so a
+ *    match inside a comment or string literal never becomes a false positive.
+ *  - Findings are capped per rule so one repeated pattern cannot flood a report.
+ *  - Limitations are reported explicitly instead of silently skipped, so a clean
+ *    report is trustworthy.
+ *  - No eval/new Function anywhere: the app ships under script-src 'self', so the
+ *    parse check is a structural analyzer that works under CSP.
+ */
+const REVIEW_SEVERITIES=["critical","high","medium","low","info"];
+const REVIEW_MAX_PER_RULE=5;
+const REVIEW_MAX_PER_FILE=60;
+const REVIEW_MAX_SOURCE_CHARS=400000;
+
+function reviewSeverityRank(s){const i=REVIEW_SEVERITIES.indexOf(String(s));return i<0?REVIEW_SEVERITIES.length:i}
+function sortReviewFindings(list){return list.sort((a,b)=>reviewSeverityRank(a.severity)-reviewSeverityRank(b.severity)||(a.line||0)-(b.line||0))}
+function reviewLineAt(src,index){let line=1;for(let i=0;i<index&&i<src.length;i++)if(src[i]==="\n")line++;return line}
+function reviewLineText(src,line){return String(src).split("\n")[line-1]||""}
+
+/**
+ * Replace the contents of comments, regex literals and (by default) string
+ * literals with spaces, preserving length and newlines so rules keep accurate
+ * line numbers but never match inside a comment or a string.
+ *
+ * keepStrings:true masks only comments and regex literals. Rules that must read
+ * string *contents* (a SQL fragment, "md5", an http:// URL) run on that layer,
+ * because on the fully masked layer those characters no longer exist.
+ *
+ * Also reports unterminated literals, the most common syntax error in generated code.
+ */
+function maskJsSource(code="",{keepStrings=false}={}){
+ const src=String(code),out=src.split(""),issues=[];
+ const blank=i=>{if(i<out.length&&out[i]!=="\n")out[i]=" "};
+ const prevSignificant=at=>{for(let k=at-1;k>=0;k--){const c=src[k];if(c===" "||c==="\t"||c==="\n"||c==="\r")continue;return c}return ""};
+ let i=0;
+ while(i<src.length){
+  const ch=src[i],next=src[i+1]||"";
+  if(ch==="/"&&next==="/"){while(i<src.length&&src[i]!=="\n")blank(i++);continue}
+  if(ch==="/"&&next==="*"){
+   const start=i;blank(i++);blank(i++);
+   while(i<src.length&&!(src[i]==="*"&&src[i+1]==="/"))blank(i++);
+   if(i>=src.length)issues.push({rule:"unterminated-block-comment",line:reviewLineAt(src,start),message:"Block comment opened with /* is never closed, so the rest of the file is treated as a comment."});
+   else{blank(i++);blank(i++)}
+   continue;
+  }
+  if(ch==='"'||ch==="'"||ch==="\u0060"){
+   const quote=ch,start=i;let closed=false;
+   i++; // keep the opening quote visible so callers can still see a literal existed
+   while(i<src.length){
+    if(src[i]==="\\"){blank(i);blank(i+1);i+=2;continue}
+    if(src[i]===quote){closed=true;break}
+    if(quote!=="\u0060"&&src[i]==="\n")break; // a plain string cannot span lines
+    if(quote==="\u0060"&&src[i]==="$"&&src[i+1]==="{"){
+     // Template expressions are real code: leave them unmasked.
+     let depth=0;i+=2;
+     while(i<src.length){
+      if(src[i]==="{")depth++;
+      else if(src[i]==="}"){if(!depth){i++;break}depth--}
+      i++;
+     }
+     continue;
+    }
+    if(keepStrings)i++;else blank(i++);
+   }
+   if(!closed)issues.push({rule:"unterminated-string",line:reviewLineAt(src,start),message:"String literal opened here is never closed."});
+   i++;continue;
+  }
+  if(ch==="/"){
+   // Regex-literal heuristic: a '/' following an operator or opening bracket
+   // starts a pattern, otherwise it is division.
+   const p=prevSignificant(i);
+   if(p===""||"(,=:[!&|?{};+-*%^~<>".includes(p)){
+    i++;let inClass=false;
+    while(i<src.length&&src[i]!=="\n"){
+     if(src[i]==="\\"){blank(i);blank(i+1);i+=2;continue}
+     if(src[i]==="[")inClass=true;
+     else if(src[i]==="]")inClass=false;
+     else if(src[i]==="/"&&!inClass)break;
+     blank(i++);
+    }
+    i++;continue;
+   }
+  }
+  i++;
+ }
+ return{masked:out.join(""),issues};
+}
+
+/**
+ * Run a table of regex rules and collect line-anchored findings.
+ *
+ * layers.code has comments, regex literals and strings blanked out.
+ * layers.strings has only comments and regex literals blanked out, so a rule can
+ * inspect string contents without matching inside a comment.
+ * A rule opts into the second layer with strings:true.
+ */
+function runReviewRules(rules,layers,raw){
+ const findings=[];
+ for(const rule of rules){
+  let hits=0;
+  const masked=rule.strings?(layers.strings??layers.code):layers.code;
+  for(const match of masked.matchAll(rule.re)){
+   if(hits>=REVIEW_MAX_PER_RULE){findings.push({severity:"info",rule:rule.rule,line:0,evidence:"",message:`Additional matches for ${rule.rule} were suppressed. Fix the reported ones and re-run.`});break}
+   hits++;
+   const line=reviewLineAt(masked,match.index);
+   findings.push({severity:rule.severity,rule:rule.rule,...(rule.owasp?{owasp:rule.owasp}:{}),line,evidence:reviewLineText(raw,line).trim().slice(0,200),message:rule.message});
+  }
+ }
+ return findings;
+}
+
+/* ---- JavaScript correctness ---- */
+
+const JS_CORRECTNESS_RULES=[
+ {rule:"debugger-statement",severity:"high",re:/\bdebugger\b/g,
+  message:"A debugger statement halts execution in any browser with devtools open. Remove it before delivery."},
+ {rule:"assignment-in-condition",severity:"high",re:/\b(?:if|while)\s*\(\s*[A-Za-z_$][\w$.[\]]*\s*=(?!=)/g,
+  message:"Assignment inside a condition is almost always a typo for a comparison (= instead of ===)."},
+ {rule:"empty-catch",severity:"high",re:/catch\s*(?:\([^)]*\))?\s*\{\s*\}/g,
+  message:"Empty catch block silently swallows the error. Handle it, or rethrow after logging context."},
+ {rule:"return-in-finally",severity:"high",re:/finally\s*\{[^{}]*\breturn\b/g,
+  message:"return inside finally discards the pending return value or exception, hiding real failures."},
+ {rule:"typeof-typo",severity:"high",strings:true,re:/typeof\s+[\w$.[\]]+\s*===?\s*["'](?!undefined|object|boolean|number|string|function|symbol|bigint)[a-z]+["']/g,
+  message:"typeof compared against a string that is not a valid type name, so the branch can never be true."},
+ {rule:"nan-comparison",severity:"high",re:/(?:[=!]==?\s*NaN\b|\bNaN\s*[=!]==?)/g,
+  message:"Comparing with NaN is always false. Use Number.isNaN(value)."},
+ {rule:"double-await",severity:"medium",re:/\bawait\s+await\b/g,
+  message:"Double await is redundant and usually a copy/paste artifact."},
+ {rule:"await-in-loop",severity:"medium",re:/\bfor\s*(?:await\s*)?\([^)]{0,200}\)\s*\{(?:[^{}]|\{[^{}]{0,200}\}){0,400}?\bawait\b/g,
+  message:"await inside a loop serializes work. If the iterations are independent, collect promises and use Promise.all."},
+ {rule:"loose-equality",severity:"medium",re:/[^=!<>]==(?!=)/g,
+  message:"Loose equality performs type coercion. Use === unless a deliberate null/undefined check is intended."},
+ {rule:"parseint-no-radix",severity:"medium",re:/\bparseInt\s*\(\s*[^,()]{1,80}\)/g,
+  message:"parseInt without a radix. Pass 10 explicitly, or use Number()."},
+ {rule:"for-in-over-array",severity:"medium",re:/\bfor\s*\(\s*(?:const|let|var)\s+\w+\s+in\s+/g,
+  message:"for...in iterates inherited string keys. Use for...of, Object.keys(), or entries()."},
+ {rule:"in-place-array-mutation",severity:"medium",re:/\.(?:sort|reverse)\s*\(\s*\)\s*\.map\s*\(/g,
+  message:"sort()/reverse() mutate the source array in place. Copy first with [...list].sort()."},
+ {rule:"var-declaration",severity:"low",re:/\bvar\s+[A-Za-z_$]/g,
+  message:"var is function-scoped and hoisted. Use const or let."},
+ {rule:"console-left-in-code",severity:"low",re:/\bconsole\.(?:log|debug|dir)\s*\(/g,
+  message:"Debug logging left in delivered code. Remove it or route it through a logger."},
+ {rule:"alert-in-code",severity:"low",re:/\b(?:alert|confirm|prompt)\s*\(/g,
+  message:"Blocking browser dialogs are poor UX. Use inline UI for messages and confirmation."}
+];
+
+/** Bracket balance and nesting check. Works under CSP because it never evaluates code. */
+function checkJsStructure(masked){
+ const pairs={")":"(","]":"[","}":"{"},stack=[],findings=[];
+ for(let i=0;i<masked.length;i++){
+  const ch=masked[i];
+  if(ch==="("||ch==="["||ch==="{")stack.push({ch,i});
+  else if(ch===")"||ch==="]"||ch==="}"){
+   const top=stack.pop();
+   if(!top){findings.push({severity:"critical",rule:"unbalanced-bracket",line:reviewLineAt(masked,i),message:`Closing "${ch}" has no matching opening bracket. The file cannot parse.`});break}
+   if(top.ch!==pairs[ch]){findings.push({severity:"critical",rule:"mismatched-bracket",line:reviewLineAt(masked,i),message:`Closing "${ch}" does not match "${top.ch}" opened on line ${reviewLineAt(masked,top.i)}. The file cannot parse.`});break}
+  }
+ }
+ if(!findings.length&&stack.length){
+  const first=stack[0];
+  findings.push({severity:"critical",rule:"unclosed-bracket",line:reviewLineAt(masked,first.i),message:`"${first.ch}" opened here is never closed (${stack.length} unclosed bracket(s) total). The file cannot parse.`});
+ }
+ return findings;
+}
+
+/** Detect a .then() chain with no rejection handling anywhere in the chain. */
+function findUnhandledPromises(masked,raw){
+ const findings=[];let hits=0;
+ for(const match of masked.matchAll(/\.then\s*\(/g)){
+  if(hits>=REVIEW_MAX_PER_RULE)break;
+  if(/\.catch\s*\(/.test(masked.slice(match.index,match.index+600)))continue;
+  const line=reviewLineAt(masked,match.index);hits++;
+  findings.push({severity:"medium",rule:"unhandled-promise-rejection",line,evidence:reviewLineText(raw,line).trim().slice(0,200),
+   message:"Promise chain has no .catch(). An async failure here becomes an unhandled rejection."});
+ }
+ return findings;
+}
+
+/** Detect JSON.parse that is not guarded by a try block. */
+function findUnguardedJsonParse(masked,raw){
+ const findings=[];let hits=0;
+ for(const match of masked.matchAll(/\bJSON\.parse\s*\(/g)){
+  if(hits>=REVIEW_MAX_PER_RULE)break;
+  if(/\btry\s*\{/.test(masked.slice(Math.max(0,match.index-400),match.index)))continue;
+  const line=reviewLineAt(masked,match.index);hits++;
+  findings.push({severity:"medium",rule:"unguarded-json-parse",line,evidence:reviewLineText(raw,line).trim().slice(0,200),
+   message:"JSON.parse throws on malformed input. Wrap it in try/catch or validate the source first."});
+ }
+ return findings;
+}
+
+/** Duplicate case labels inside a switch are unreachable code. */
+function findDuplicateCases(masked,raw){
+ const findings=[],seen=new Map();
+ for(const match of masked.matchAll(/\bcase\s+([^:\n]{1,80}):/g)){
+  const key=match[1].trim();if(!key)continue;
+  const line=reviewLineAt(masked,match.index);
+  if(seen.has(key))findings.push({severity:"high",rule:"duplicate-case-label",line,evidence:reviewLineText(raw,line).trim().slice(0,200),
+   message:`Duplicate case label ${key} (first seen on line ${seen.get(key)}). The second branch is unreachable.`});
+  else seen.set(key,line);
+ }
+ return findings;
+}
+
+function analyzeJavaScriptSource(name,code){
+ const raw=String(code||"");
+ if(raw.length>REVIEW_MAX_SOURCE_CHARS)return{name,parsed:false,parseSkipped:true,parseNote:`Source is ${raw.length} chars, above the ${REVIEW_MAX_SOURCE_CHARS} review limit. Split the file and re-run.`,findings:[]};
+ const{masked,issues}=maskJsSource(raw);
+ const{masked:strings}=maskJsSource(raw,{keepStrings:true});
+ const layers={code:masked,strings};
+ const literalErrors=issues.map(x=>({severity:"critical",rule:x.rule,line:x.line,message:x.message}));
+ const structural=literalErrors.length?[]:checkJsStructure(masked);
+ const isTs=/\.tsx?$/i.test(name),isJsx=/\.[jt]sx$/i.test(name)||/<[A-Z][\w]*[\s/>]/.test(raw);
+ const parseNote=isTs?"TypeScript source: type annotations are not analyzed here, only structure and patterns."
+  :isJsx?"JSX source: markup blocks are not analyzed here, only structure and patterns.":"";
+ const findings=[...literalErrors,...structural].map(f=>({...f,evidence:reviewLineText(raw,f.line).trim().slice(0,200)}))
+  .concat(runReviewRules(JS_CORRECTNESS_RULES,layers,raw),findUnhandledPromises(masked,raw),findUnguardedJsonParse(masked,raw),findDuplicateCases(masked,raw));
+ return{name,parsed:!literalErrors.length&&!structural.length,parseSkipped:false,...(parseNote?{parseNote}:{}),
+  findings:sortReviewFindings(findings).slice(0,REVIEW_MAX_PER_FILE)};
+}
+
+/* ---- Security risk (OWASP Top 10:2025) ---- */
+
+const SECURITY_RULES=[
+ {rule:"eval-call",severity:"critical",owasp:"A05:2025 Injection",re:/\beval\s*\(/g,
+  message:"eval() executes arbitrary code. Use JSON.parse for data or an explicit dispatch map for behavior."},
+ {rule:"dynamic-function-constructor",severity:"high",owasp:"A05:2025 Injection",re:/\bnew\s+Function\s*\(/g,
+  message:"new Function() compiles arbitrary strings and is blocked by a strict CSP. Avoid it unless the source is a trusted constant."},
+ {rule:"timer-string-eval",severity:"high",owasp:"A05:2025 Injection",strings:true,re:/\bset(?:Timeout|Interval)\s*\(\s*["'\u0060][^"'\u0060)]/g,
+  message:"Passing a string to setTimeout/setInterval evaluates it like eval(). Pass a function instead."},
+ {rule:"html-injection-sink",severity:"high",owasp:"A05:2025 Injection",re:/\.(?:innerHTML|outerHTML)\s*=\s*(?!["'\u0060]\s*["'\u0060])/g,
+  message:"Assigning to innerHTML/outerHTML is a DOM XSS sink. Use textContent, or sanitize before injecting HTML."},
+ {rule:"insert-adjacent-html",severity:"high",owasp:"A05:2025 Injection",re:/\.insertAdjacentHTML\s*\(/g,
+  message:"insertAdjacentHTML injects parsed HTML. Sanitize the input or build nodes explicitly."},
+ {rule:"document-write",severity:"high",owasp:"A05:2025 Injection",re:/\bdocument\.write(?:ln)?\s*\(/g,
+  message:"document.write is an XSS sink and blocks parsing. Build and append DOM nodes instead."},
+ {rule:"react-dangerous-html",severity:"high",owasp:"A05:2025 Injection",re:/dangerouslySetInnerHTML/g,
+  message:"dangerouslySetInnerHTML bypasses React escaping. Sanitize the HTML or render it as text."},
+ {rule:"command-injection",severity:"critical",owasp:"A05:2025 Injection",strings:true,re:/\b(?:exec|execSync|spawnSync?)\s*\(\s*["'\u0060][^"'\u0060\n]{0,200}(?:\$\{|["'\u0060]\s*\+)/g,
+  message:"Shell command built by interpolation is command injection. Use an argument array with execFile/spawn."},
+ {rule:"sql-string-building",severity:"critical",owasp:"A05:2025 Injection",strings:true,re:/(?:SELECT\b[^;\n]{0,80}\bFROM\b|INSERT\s+INTO\b|UPDATE\b[^;\n]{0,40}\bSET\b|DELETE\s+FROM\b)[^;\n]{0,120}(?:\$\{|["'\u0060]\s*\+)/gi,
+  message:"SQL built by concatenation or interpolation is SQL injection. Use parameterized queries."},
+ {rule:"nosql-operator-injection",severity:"high",owasp:"A05:2025 Injection",re:/\.(?:find|findOne|updateOne|deleteOne)\s*\(\s*(?:req\.(?:body|query|params)|\{\s*\.\.\.\s*req\.)/g,
+  message:"Passing request input straight into a query allows operator injection ($ne, $gt). Cast and validate each field first."},
+ {rule:"tls-verification-disabled",severity:"critical",owasp:"A02:2025 Security Misconfiguration",strings:true,re:/rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0/g,
+  message:"TLS certificate verification is disabled, which permits man-in-the-middle attacks."},
+ {rule:"wildcard-cors",severity:"medium",owasp:"A01:2025 Broken Access Control",strings:true,re:/Access-Control-Allow-Origin["'\s:,]+\*/g,
+  message:"Wildcard CORS exposes the endpoint to every origin. Echo a validated allowlisted origin instead."},
+ {rule:"csp-unsafe",severity:"medium",owasp:"A02:2025 Security Misconfiguration",strings:true,re:/unsafe-(?:eval|inline)/g,
+  message:"CSP with unsafe-eval/unsafe-inline defeats most XSS protection. Use nonces or hashes."},
+ {rule:"insecure-randomness",severity:"high",owasp:"A04:2025 Cryptographic Failures",re:/\b(?:token|secret|key|password|nonce|salt|otp|session|uuid)\w*\s*=\s*[^;\n]{0,60}Math\.random\s*\(/gi,
+  message:"Math.random() is not cryptographically secure. Use crypto.getRandomValues or crypto.randomUUID."},
+ {rule:"weak-hash",severity:"medium",owasp:"A04:2025 Cryptographic Failures",strings:true,re:/createHash\s*\(\s*["'](?:md5|sha1)["']/gi,
+  message:"MD5/SHA-1 are broken for security use. Use SHA-256 or better, and bcrypt/scrypt/argon2 for passwords."},
+ {rule:"deprecated-cipher",severity:"high",owasp:"A04:2025 Cryptographic Failures",re:/\bcreateCipher\s*\(|\bcreateDecipher\s*\(/g,
+  message:"createCipher/createDecipher derive keys insecurely. Use createCipheriv with a random IV."},
+ {rule:"jwt-alg-none",severity:"critical",owasp:"A07:2025 Authentication Failures",strings:true,re:/algorithms?\s*:\s*\[?\s*["']none["']|["']alg["']\s*:\s*["']none["']/gi,
+  message:"Accepting the 'none' JWT algorithm lets anyone forge tokens. Pin an explicit algorithm."},
+ {rule:"jwt-verification-skipped",severity:"high",owasp:"A07:2025 Authentication Failures",re:/\bjwt\.decode\s*\(/g,
+  message:"jwt.decode does not verify the signature. Use jwt.verify with the expected algorithm and key."},
+ {rule:"token-in-localstorage",severity:"medium",owasp:"A07:2025 Authentication Failures",strings:true,re:/localStorage\.setItem\s*\(\s*["'][^"']*(?:token|jwt|secret|password|auth)/gi,
+  message:"Credentials in localStorage are readable by any XSS. Prefer httpOnly, Secure, SameSite cookies."},
+ {rule:"timing-unsafe-secret-compare",severity:"medium",owasp:"A07:2025 Authentication Failures",re:/\b(?:password|secret|apiKey|authToken|signature|hmac)\w*\s*(?:===?|!==?)\s*[A-Za-z_$]/g,
+  message:"Comparing secrets with == / === leaks length and prefix through timing. Use a constant-time compare."},
+ {rule:"sensitive-data-logged",severity:"high",owasp:"A09:2025 Logging and Alerting Failures",re:/console\.\w+\s*\([^)\n]{0,80}\b(?:password|secret|token|apiKey|api_key|credential|privateKey)\b/gi,
+  message:"Logging a credential writes it to log storage in plaintext. Redact before logging."},
+ {rule:"error-detail-leaked-to-client",severity:"medium",owasp:"A09:2025 Logging and Alerting Failures",re:/res\.(?:status\s*\(\s*5\d\d\s*\)\s*\.)?(?:json|send)\s*\(\s*\{?[^)\n]{0,60}(?:err(?:or)?\.stack|String\s*\(\s*err)/g,
+  message:"Returning a stack trace to the client leaks internals. Log the detail server-side and return a generic message."},
+ {rule:"prototype-pollution-sink",severity:"high",owasp:"A08:2025 Data Integrity Failures",re:/\[\s*["']__proto__["']\s*\]|\.__proto__\s*=|\bconstructor\s*\]\s*\[\s*["']prototype["']/g,
+  message:"Writing through __proto__/constructor.prototype enables prototype pollution. Use Object.create(null) or reject those keys."},
+ {rule:"postmessage-wildcard-origin",severity:"medium",strings:true,owasp:"A08:2025 Data Integrity Failures",re:/postMessage\s*\([^,)\n]{1,120},\s*["']\*["']/g,
+  message:"postMessage to '*' can be read by any framing origin. Pass an explicit target origin."},
+ {rule:"message-listener-no-origin-check",severity:"high",owasp:"A08:2025 Data Integrity Failures",strings:true,re:/addEventListener\s*\(\s*["']message["']\s*,\s*(?:function\s*\([^)\n]{0,60}\)|\([^)\n]{0,60}\)\s*=>|[A-Za-z_$][\w$]{0,40}\s*\)\s*;?)(?:(?!\borigin\b)[\s\S]){0,400}?\}/g,
+  message:"message listener does not check event.origin, so any page that frames or opens this one can drive the handler."},
+ {rule:"path-traversal-sink",severity:"high",owasp:"A01:2025 Broken Access Control",re:/(?:readFile|readFileSync|createReadStream|sendFile)\s*\(\s*[^)\n]{0,80}(?:req\.|request\.|params|query|body)/g,
+  message:"Filesystem path built from request input allows path traversal. Resolve it and confirm it stays inside the intended root."},
+ {rule:"unguarded-state-changing-route",severity:"medium",owasp:"A01:2025 Broken Access Control",strings:true,re:/\b(?:app|router)\.(?:post|put|patch|delete)\s*\(\s*["'][^"'\n]{0,80}["']\s*,\s*(?:async\s*)?\([^)\n]{0,60}\)\s*=>/g,
+  message:"State-changing route has no middleware between the path and the handler. Read the handler and confirm it authorizes the caller; this is a prompt to verify, not proof of a hole."},
+ {rule:"open-redirect",severity:"medium",owasp:"A01:2025 Broken Access Control",re:/(?:location\.(?:href|assign|replace)|window\.location)\s*[=(]\s*[^;\n]{0,60}(?:searchParams|\bquery\b|\bparams\b|req\.)/g,
+  message:"Redirect target taken from user input is an open redirect. Allowlist destinations or use relative paths."},
+ {rule:"insecure-http-url",severity:"low",owasp:"A02:2025 Security Misconfiguration",strings:true,re:/["']http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/g,
+  message:"Plaintext http:// endpoint. Use https:// so traffic cannot be read or modified in transit."},
+ {rule:"remote-script-piped-to-shell",severity:"high",owasp:"A03:2025 Software Supply Chain Failures",strings:true,re:/(?:curl|wget)[^\n|]{0,120}\|\s*(?:sudo\s+)?(?:ba)?sh/g,
+  message:"Piping a downloaded script straight into a shell executes unverified remote code. Pin and verify it first."},
+ {rule:"unpinned-remote-script",severity:"medium",owasp:"A03:2025 Software Supply Chain Failures",strings:true,re:/<script[^>]{0,200}src=["']https?:\/\/(?![^"']*(?:sha256-|sha384-|sha512-))[^"']*(?:@latest|\/latest\/)/g,
+  message:"Remote script pinned to 'latest' with no integrity hash. Pin an exact version and add a Subresource Integrity hash."},
+ {rule:"silent-promise-catch",severity:"medium",owasp:"A10:2025 Mishandling of Exceptional Conditions",re:/\.catch\s*\(\s*(?:\(\s*\)|[A-Za-z_$][\w$]{0,20})\s*=>\s*\{?\s*\}?\s*\)/g,
+  message:"Rejection handler discards the error, so the failure is invisible and the code continues as if it succeeded."}
+];
+
+/** Hardcoded credential shapes. Matched against RAW source because secrets live inside strings. */
+const SECRET_RULES=[
+ {rule:"hardcoded-openai-key",severity:"critical",re:/\bsk-[A-Za-z0-9_-]{20,}/g,message:"Hardcoded OpenAI-style API key. Move it to an environment variable and rotate the exposed key."},
+ {rule:"hardcoded-github-token",severity:"critical",re:/\bgh[pousr]_[A-Za-z0-9]{20,}/g,message:"Hardcoded GitHub token. Move it to a secret store and revoke the exposed token."},
+ {rule:"hardcoded-google-key",severity:"critical",re:/\bAIza[0-9A-Za-z_-]{30,}/g,message:"Hardcoded Google API key. Move it to configuration and restrict the key."},
+ {rule:"hardcoded-aws-key",severity:"critical",re:/\b(?:AKIA|ASIA)[0-9A-Z]{12,}/g,message:"Hardcoded AWS access key ID. Rotate it immediately and use a role or environment variable."},
+ {rule:"hardcoded-slack-token",severity:"critical",re:/\bxox[abprs]-[A-Za-z0-9-]{10,}/g,message:"Hardcoded Slack token. Revoke it and move to a secret store."},
+ {rule:"private-key-block",severity:"critical",re:/-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/g,message:"Private key committed in source. Remove it from the file and from version-control history, then rotate it."},
+ {rule:"hardcoded-credential-literal",severity:"high",re:/\b(?:password|passwd|secret|api_?key|auth_?token|client_?secret)\s*[:=]\s*["'][^"'\s$%{}]{8,}["']/gi,message:"Credential assigned from a literal string. Read it from the environment instead."}
+];
+
+function analyzeSecurityRisks(name,code){
+ const raw=String(code||"");
+ if(raw.length>REVIEW_MAX_SOURCE_CHARS)return{name,findings:[{severity:"info",rule:"source-too-large",line:0,evidence:"",message:`Source is ${raw.length} chars, above the ${REVIEW_MAX_SOURCE_CHARS} review limit.`}]};
+ const{masked}=maskJsSource(raw);
+ const{masked:strings}=maskJsSource(raw,{keepStrings:true});
+ const findings=[...runReviewRules(SECURITY_RULES,{code:masked,strings},raw),...runReviewRules(SECRET_RULES,{code:raw},raw)];
+ return{name,findings:sortReviewFindings(findings).slice(0,REVIEW_MAX_PER_FILE)};
+}
+
+/* ---- UI/UX quality ---- */
+
+const CSS_NAMED_COLORS={white:"#ffffff",black:"#000000",red:"#ff0000",blue:"#0000ff",green:"#008000",gray:"#808080",grey:"#808080",silver:"#c0c0c0",navy:"#000080",teal:"#008080",orange:"#ffa500",yellow:"#ffff00",transparent:""};
+function parseCssColor(input=""){
+ const value=String(input).trim().toLowerCase();
+ if(Object.hasOwn(CSS_NAMED_COLORS,value))return CSS_NAMED_COLORS[value]?parseCssColor(CSS_NAMED_COLORS[value]):null;
+ let m=value.match(/^#([0-9a-f]{3})$/);if(m)return[0,1,2].map(i=>parseInt(m[1][i]+m[1][i],16));
+ m=value.match(/^#([0-9a-f]{6})$/);if(m)return[0,2,4].map(i=>parseInt(m[1].slice(i,i+2),16));
+ m=value.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/);if(m)return[1,2,3].map(i=>Math.max(0,Math.min(255,Math.round(Number(m[i])))));
+ return null;
+}
+/** WCAG 2.1 relative luminance and contrast ratio. */
+function relativeLuminance(rgb){const[r,g,b]=rgb.map(c=>{const s=c/255;return s<=.03928?s/12.92:Math.pow((s+.055)/1.055,2.4)});return .2126*r+.7152*g+.0722*b}
+function contrastRatio(colorA,colorB){
+ const a=parseCssColor(colorA),b=parseCssColor(colorB);if(!a||!b)return null;
+ const la=relativeLuminance(a),lb=relativeLuminance(b);
+ return Math.round(((Math.max(la,lb)+.05)/(Math.min(la,lb)+.05))*100)/100;
+}
+/** Split CSS into { selector, body, line } blocks, ignoring at-rule wrappers. */
+function cssRuleBlocks(css=""){
+ const src=String(css),blocks=[];
+ for(const match of src.matchAll(/([^{}]{1,400})\{([^{}]{0,4000})\}/g)){
+  const rawSelector=match[1],selector=rawSelector.trim().replace(/\s+/g," ");
+  if(!selector||selector.startsWith("@"))continue;
+  const offset=rawSelector.length-rawSelector.trimStart().length;
+  blocks.push({selector,body:match[2],line:reviewLineAt(src,match.index+offset)});
+ }
+ return blocks;
+}
+function cssDeclaration(body,prop){
+ const match=String(body).match(new RegExp(`(?:^|[;{\\s])${prop}\\s*:\\s*([^;}]+)`,"i"));
+ return match?match[1].trim():"";
+}
+
+/**
+ * Static CSS-level UI/UX analysis: contrast, focus visibility, tap targets,
+ * readability, motion preference and RTL-safe properties.
+ */
+function analyzeStyleUx(name,css,{rtl=false}={}){
+ const raw=String(css||""),findings=[];
+ const push=(severity,rule,line,message)=>findings.push({severity,rule,line,evidence:reviewLineText(raw,line).trim().slice(0,200),message});
+ const blocks=cssRuleBlocks(raw);
+
+ // Contrast: only when a rule sets both foreground and background explicitly.
+ let contrastHits=0;
+ for(const block of blocks){
+  if(contrastHits>=REVIEW_MAX_PER_RULE)break;
+  const fg=cssDeclaration(block.body,"color"),bg=cssDeclaration(block.body,"background-color")||cssDeclaration(block.body,"background");
+  if(!fg||!bg)continue;
+  const ratio=contrastRatio(fg,bg.split(/\s+/)[0]);
+  if(ratio===null)continue;
+  const sizeDecl=cssDeclaration(block.body,"font-size");
+  const px=/(\d+(?:\.\d+)?)px/.exec(sizeDecl),rem=/(\d+(?:\.\d+)?)rem/.exec(sizeDecl);
+  const sizePx=px?Number(px[1]):rem?Number(rem[1])*16:16;
+  const bold=/font-weight\s*:\s*(?:bold|[7-9]00)/i.test(block.body);
+  const required=(sizePx>=24||(bold&&sizePx>=18.66))?3:4.5;
+  if(ratio<required){
+   contrastHits++;
+   push(ratio<required/1.5?"high":"medium","insufficient-color-contrast",block.line,
+    `Contrast ${ratio}:1 for "${block.selector}" is below the WCAG AA minimum of ${required}:1 (${fg} on ${bg}). Darken the text or lighten the background.`);
+  }
+ }
+
+ // Keyboard focus must stay visible.
+ for(const block of blocks.filter(b=>/outline\s*:\s*(?:none|0)/i.test(b.body)).slice(0,REVIEW_MAX_PER_RULE)){
+  if(!/(?:box-shadow|outline-offset|border)\s*:/i.test(block.body))
+   push("high","focus-outline-removed",block.line,`"${block.selector}" removes the focus outline without a replacement, so keyboard users cannot see focus. Style :focus-visible instead.`);
+ }
+ if(/:hover\b/.test(raw)&&!/:focus(?:-visible)?\b/.test(raw))
+  push("high","hover-without-focus",reviewLineAt(raw,raw.search(/:hover\b/)),"Interactive styles define :hover but never :focus-visible, so the UI gives no keyboard feedback.");
+
+ // Motion must respect the reduced-motion preference.
+ if(/(?:animation|transition)\s*:/i.test(raw)&&!/prefers-reduced-motion/i.test(raw))
+  push("medium","no-reduced-motion-support",reviewLineAt(raw,raw.search(/(?:animation|transition)\s*:/i)),"Animation/transition is used with no @media (prefers-reduced-motion: reduce) fallback, which can trigger motion sickness.");
+
+ // Readability and tap targets.
+ let smallText=0;
+ for(const match of raw.matchAll(/font-size\s*:\s*(\d+(?:\.\d+)?)px/gi)){
+  if(Number(match[1])>=12||smallText>=REVIEW_MAX_PER_RULE)continue;
+  smallText++;
+  push("medium","font-size-too-small",reviewLineAt(raw,match.index),`font-size ${match[1]}px is below the ~12px readable minimum on mobile.`);
+ }
+ let tapTargets=0;
+ for(const block of blocks){
+  if(tapTargets>=REVIEW_MAX_PER_RULE)break;
+  if(!/(?:^|[\s,>])(?:button|a|\.btn|\[role="button"\])/i.test(block.selector))continue;
+  const h=/(?:^|[;\s])(?:min-)?height\s*:\s*(\d+(?:\.\d+)?)px/i.exec(block.body);
+  if(h&&Number(h[1])<44){tapTargets++;push("medium","tap-target-too-small",block.line,`"${block.selector}" is ${h[1]}px tall; touch targets should be about 44px or larger.`)}
+ }
+
+ // Responsive risk visible in source form.
+ let fixedWidths=0;
+ for(const match of raw.matchAll(/(?:^|[;\s{])width\s*:\s*(\d{4,})px/gi)){
+  if(fixedWidths>=REVIEW_MAX_PER_RULE)break;fixedWidths++;
+  push("medium","fixed-large-width",reviewLineAt(raw,match.index),`Fixed width ${match[1]}px will overflow small viewports. Use max-width with a percentage or clamp().`);
+ }
+
+ // Right-to-left correctness. Physical offsets do not mirror for Arabic/Hebrew layouts.
+ if(rtl){
+  let physical=0;
+  for(const match of raw.matchAll(/(?:^|[;\s{])(margin|padding|border)-(left|right)\s*:/gi)){
+   if(physical>=REVIEW_MAX_PER_RULE)break;physical++;
+   push("medium","physical-property-in-rtl",reviewLineAt(raw,match.index),`${match[1]}-${match[2]} does not mirror in RTL. Use ${match[1]}-inline-start / ${match[1]}-inline-end.`);
+  }
+  for(const match of raw.matchAll(/text-align\s*:\s*(left|right)\b/gi)){
+   push("medium","text-align-physical-in-rtl",reviewLineAt(raw,match.index),`text-align: ${match[1]} does not mirror in RTL. Use start or end.`);
+   break;
+  }
+ }
+
+ // Maintainability signals that usually indicate specificity fights.
+ const importantCount=(raw.match(/!important/g)||[]).length;
+ if(importantCount>5)push("low","important-overuse",reviewLineAt(raw,raw.search(/!important/)),`${importantCount} uses of !important indicate specificity conflicts that make future styling unpredictable.`);
+ for(const match of raw.matchAll(/z-index\s*:\s*(\d{4,})/g)){
+  push("low","z-index-escalation",reviewLineAt(raw,match.index),`z-index ${match[1]} suggests an ad-hoc stacking war. Define a small set of layer tokens.`);
+  break;
+ }
+
+ return{name,findings:sortReviewFindings(findings).slice(0,REVIEW_MAX_PER_FILE)};
+}
+
+/**
+ * DOM-level UI/UX review over a parsed document. Uses DOMParser rather than an
+ * iframe: nothing is executed, no subresource is fetched, and only static
+ * structure is inspected. Rendered geometry stays the job of browser_preview.
+ */
+function analyzeDomUx(name,doc,{rtl=false}={}){
+ const findings=[];
+ const push=(severity,rule,message,evidence="")=>findings.push({severity,rule,line:0,evidence:String(evidence).slice(0,200),message});
+ const q=sel=>{try{return[...doc.querySelectorAll(sel)]}catch{return[]}};
+
+ // Document and semantics.
+ if(!doc.documentElement?.getAttribute("lang"))push("high","missing-lang","The <html> element has no lang attribute, so screen readers cannot choose the right pronunciation.");
+ if(rtl&&doc.documentElement?.getAttribute("dir")!=="rtl")push("high","missing-dir-rtl","Content is right-to-left but the html dir=\"rtl\" attribute is not set, so text and layout render in the wrong direction.");
+ if(!q("main,[role=main]").length)push("medium","no-main-landmark","No <main> landmark, so assistive-tech users cannot skip to the primary content.");
+ const h1=q("h1");
+ if(!h1.length)push("medium","no-h1","No <h1>: the page has no programmatic title for its main content.");
+ else if(h1.length>1)push("low","multiple-h1",`${h1.length} <h1> elements found. Use one top-level heading per page.`);
+ const levels=q("h1,h2,h3,h4,h5,h6").map(el=>Number(el.tagName[1]));
+ for(let i=1;i<levels.length;i++){
+  if(levels[i]-levels[i-1]>1){push("medium","heading-level-skipped",`Heading level jumps from h${levels[i-1]} to h${levels[i]}, which breaks the document outline for screen readers.`);break}
+ }
+
+ // Images and media.
+ const noAlt=q("img:not([alt])");
+ if(noAlt.length)push("high","image-missing-alt",`${noAlt.length} <img> element(s) have no alt attribute. Add descriptive alt, or an empty alt if purely decorative.`,noAlt[0].outerHTML);
+ const noDims=q("img:not([width]):not([height])").filter(el=>!/(?:width|height)\s*:/i.test(el.getAttribute("style")||""));
+ if(noDims.length)push("low","image-missing-dimensions",`${noDims.length} image(s) declare no width/height, which causes layout shift (CLS) while loading.`);
+ const noLazy=q("img:not([loading])");
+ if(noLazy.length>4)push("low","image-not-lazy",`${noLazy.length} images have no loading attribute. Use loading="lazy" for below-the-fold images.`);
+
+ // Forms.
+ const unlabeled=q("input:not([type=hidden]):not([type=submit]):not([type=button]),select,textarea").filter(el=>{
+  if(el.getAttribute("aria-label")||el.getAttribute("aria-labelledby")||el.closest("label"))return false;
+  const id=el.getAttribute("id");
+  if(id){try{if(doc.querySelector(`label[for="${CSS.escape(id)}"]`))return false}catch{return false}}
+  return true;
+ });
+ if(unlabeled.length)push("high","form-control-unlabeled",`${unlabeled.length} form control(s) have no associated <label>. Screen reader users cannot tell what to enter.`,unlabeled[0].outerHTML);
+ const noAutocomplete=q("input[type=email],input[type=password],input[type=tel]").filter(el=>!el.getAttribute("autocomplete"));
+ if(noAutocomplete.length)push("low","missing-autocomplete",`${noAutocomplete.length} identity/credential input(s) lack an autocomplete attribute, which hurts autofill and mobile UX.`);
+ const noInputmode=q("input[type=text]").filter(el=>/(?:phone|tel|zip|postal|code|amount|qty|quantity)/i.test(el.getAttribute("name")||el.getAttribute("id")||"")&&!el.getAttribute("inputmode"));
+ if(noInputmode.length)push("low","missing-inputmode",`${noInputmode.length} numeric-style text input(s) have no inputmode, so mobile users get the wrong keyboard.`,noInputmode[0].outerHTML);
+
+ // Interactive elements.
+ const emptyButtons=q("button,[role=button]").filter(el=>!el.textContent.trim()&&!el.getAttribute("aria-label")&&!el.getAttribute("aria-labelledby")&&!el.querySelector("img[alt]:not([alt=''])"));
+ if(emptyButtons.length)push("high","button-without-accessible-name",`${emptyButtons.length} button(s) have no accessible name. Icon-only buttons need aria-label.`,emptyButtons[0].outerHTML);
+ const vagueLinks=q("a").filter(el=>/^(?:click here|here|read more|more|link|اضغط هنا|هنا|المزيد|اقرأ المزيد)$/i.test(el.textContent.trim()));
+ if(vagueLinks.length)push("low","non-descriptive-link-text",`${vagueLinks.length} link(s) use non-descriptive text. Users navigating by link list get no context.`,vagueLinks[0].outerHTML);
+ const blankNoRel=q('a[target="_blank"]').filter(el=>!/\bnoopener\b/.test(el.getAttribute("rel")||""));
+ if(blankNoRel.length)push("medium","target-blank-without-noopener",`${blankNoRel.length} target="_blank" link(s) lack rel="noopener", which is a tabnabbing risk.`,blankNoRel[0].outerHTML);
+ const divButtons=q("div[onclick],span[onclick],li[onclick]").filter(el=>!el.getAttribute("role"));
+ if(divButtons.length)push("high","clickable-non-interactive-element",`${divButtons.length} clickable <div>/<span> without a role or keyboard handler. Use <button> so it is focusable and keyboard-operable.`,divButtons[0].outerHTML);
+ const badTabindex=q("[tabindex]").filter(el=>Number(el.getAttribute("tabindex"))>0);
+ if(badTabindex.length)push("medium","positive-tabindex",`${badTabindex.length} element(s) use a positive tabindex, which desynchronizes focus order from visual order.`);
+
+ // Mobile and viewport.
+ const viewport=doc.querySelector('meta[name="viewport"]');
+ if(!viewport)push("high","missing-viewport-meta","No viewport meta tag: the page will render zoomed-out on mobile.");
+ else{
+  const content=viewport.getAttribute("content")||"";
+  if(/user-scalable\s*=\s*no/i.test(content)||/maximum-scale\s*=\s*1\b/i.test(content))
+   push("high","zoom-disabled","The viewport meta disables zoom, which blocks low-vision users from enlarging text.",content);
+ }
+
+ // Feedback and trust.
+ if(q("form").length&&!q("[aria-live],[role=alert],[role=status]").length)
+  push("medium","no-live-region-for-feedback","The page has a form but no aria-live/role=alert region, so validation and status messages are not announced.");
+ if(!doc.querySelector("title")||!(doc.querySelector("title")?.textContent||"").trim())
+  push("medium","missing-title","The document has no <title>, which harms tab identification, bookmarks and SEO.");
+ if(!doc.querySelector('meta[name="description"]'))push("low","missing-meta-description","No meta description, which weakens search results and link previews.");
+ if(q("nav a").length>5&&!q("a.skip-link,[class*=skip-link]").length)
+  push("low","no-skip-link","Long navigation with no skip link. Keyboard users must tab through every nav item on each page.");
+
+ return{name,findings:sortReviewFindings(findings).slice(0,REVIEW_MAX_PER_FILE)};
+}
+
+/* ---- Report assembly ---- */
+
+function summarizeSeverity(reports){
+ const counts={critical:0,high:0,medium:0,low:0,info:0};
+ for(const report of reports)for(const f of report.findings||[])if(counts[f.severity]!==undefined)counts[f.severity]++;
+ return counts;
+}
+/**
+ * Shared tool result. The blocking severities decide ok/next steps so the model
+ * receives an unambiguous gate rather than an opinion.
+ */
+function buildReviewResult({kind,reports,blocking=["critical","high"],notes=[]}){
+ const counts=summarizeSeverity(reports);
+ const blockingCount=blocking.reduce((n,s)=>n+(counts[s]||0),0);
+ const total=Object.values(counts).reduce((a,b)=>a+b,0);
+ const withFindings=reports.filter(r=>(r.findings||[]).length);
+ return{
+  ok:blockingCount===0,kind,
+  summary:{files:reports.length,findings:total,...counts,blocking:blockingCount},
+  reports:withFindings.length?withFindings:reports.map(r=>({...r,findings:[]})),
+  ...(notes.length?{notes}:{}),
+  recommendation:blockingCount
+   ?`${blockingCount} blocking issue(s) at severity ${blocking.join("/")}. Fix these before writing the final code or publishing, then re-run ${kind}.`
+   :total?"No blocking issues. Review the remaining medium/low findings and fix the ones that apply."
+   :"No issues detected by the static checks. This does not replace running the code and testing behavior."
+ };
+}
+
+/* ---- Target collection ---- */
+
+/**
+ * Blank out everything in an HTML document except inline <script> bodies, keeping
+ * length and newlines so reported line numbers still point at the HTML file.
+ */
+function inlineScriptSource(html=""){
+ const src=String(html),out=[];
+ for(const ch of src)out.push(ch==="\n"?"\n":" ");
+ let found=false;
+ for(const match of src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)){
+  const attrs=match[1]||"",body=match[2]||"";
+  if(/\bsrc\s*=/i.test(attrs))continue;
+  if(/\btype\s*=/i.test(attrs)&&!/\btype\s*=\s*["']?(?:text\/javascript|application\/javascript|module)/i.test(attrs))continue;
+  if(!body.trim())continue;
+  const bodyStart=match.index+match[0].indexOf(">")+1;
+  for(let i=0;i<body.length;i++)out[bodyStart+i]=body[i];
+  found=true;
+ }
+ return found?out.join(""):"";
+}
+/** Blank out everything except inline <style> bodies, preserving line numbers. */
+function inlineStyleSource(html=""){
+ const src=String(html),out=[];
+ for(const ch of src)out.push(ch==="\n"?"\n":" ");
+ let found=false;
+ for(const match of src.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)){
+  const body=match[1]||"";
+  if(!body.trim())continue;
+  const bodyStart=match.index+match[0].indexOf(">")+1;
+  for(let i=0;i<body.length;i++)out[bodyStart+i]=body[i];
+  found=true;
+ }
+ return found?out.join(""):"";
+}
+function looksRightToLeft(text=""){return /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F]/.test(String(text))}
+function isJsArtifact(a){return /\.(?:m|c)?jsx?$/i.test(a.name||"")||/\.tsx?$/i.test(a.name||"")||/javascript|typescript/i.test(a.language||"")}
+function isHtmlArtifact(a){return /\.html?$/i.test(a.name||"")||/html/i.test(a.language||"")}
+function isCssArtifact(a){return /\.css$/i.test(a.name||"")||/^css$/i.test(a.language||"")}
+async function reviewCandidates(args={}){
+ const all=(await idbAll("artifacts")).filter(x=>x.projectId===state.settings.activeProjectId);
+ if(Array.isArray(args.names)&&args.names.length){
+  const wanted=new Set(args.names.map(x=>String(x).toLowerCase()));
+  return all.filter(x=>wanted.has(String(x.name||"").toLowerCase()));
+ }
+ return all;
+}
+
+/* ---- Tool entry points ---- */
+
+/** js_validator: structure and correctness review of JavaScript, including inline <script>. */
+async function reviewJavaScript(args={}){
+ const reports=[],notes=[];
+ if(String(args.code||"").trim()){
+  reports.push(analyzeJavaScriptSource(String(args.name||"inline.js"),args.code));
+ }else{
+  const items=await reviewCandidates(args);
+  if(!items.length)return{ok:false,error:"No artifacts found in the active project to review"};
+  for(const a of items){
+   const content=String(a.content||"");
+   if(isJsArtifact(a))reports.push(analyzeJavaScriptSource(a.name,content));
+   else if(isHtmlArtifact(a)){
+    const script=inlineScriptSource(content);
+    if(script.trim())reports.push(analyzeJavaScriptSource(`${a.name} <script>`,script));
+   }
+  }
+  if(!reports.length)return{ok:false,error:"No JavaScript found. Pass names, or use the code parameter to review a snippet directly."};
+ }
+ for(const r of reports)if(r.parseNote)notes.push(`${r.name}: ${r.parseNote}`);
+ notes.push("Static review only. Run code_execute or sandbox_exec to confirm runtime behavior.");
+ return buildReviewResult({kind:"js_validator",reports,notes});
+}
+
+/** security_audit: OWASP Top 10:2025 aligned scan of project code. */
+async function reviewSecurity(args={}){
+ const reports=[];
+ if(String(args.code||"").trim()){
+  reports.push(analyzeSecurityRisks(String(args.name||"inline"),args.code));
+ }else{
+  const items=await reviewCandidates(args);
+  if(!items.length)return{ok:false,error:"No artifacts found in the active project to review"};
+  for(const a of items)reports.push(analyzeSecurityRisks(a.name,String(a.content||"")));
+ }
+ return buildReviewResult({kind:"security_audit",reports,notes:[
+  "Rules are aligned to OWASP Top 10:2025 and reported with file, line and evidence.",
+  "Static analysis cannot prove exploitability. Confirm each finding reaches attacker-controlled input before rewriting code, and confirm authorization by reading the route rather than by pattern alone."
+ ]});
+}
+
+/** ux_review: accessibility, contrast, interaction-state and RTL review before final code. */
+async function reviewUx(args={}){
+ const reports=[],notes=[];
+ const inlineHtml=String(args.html||"");
+ const explicitRtl=typeof args.rtl==="boolean"?args.rtl:null;
+ if(inlineHtml.trim()){
+  const label=String(args.name||"inline.html"),rtl=explicitRtl??looksRightToLeft(inlineHtml);
+  reports.push(analyzeDomUx(label,new DOMParser().parseFromString(inlineHtml,"text/html"),{rtl}));
+  const style=inlineStyleSource(inlineHtml);
+  if(style.trim())reports.push(analyzeStyleUx(`${label} <style>`,style,{rtl}));
+ }else{
+  const items=await reviewCandidates(args);
+  if(!items.length)return{ok:false,error:"No artifacts found in the active project to review"};
+  const targets=items.filter(a=>isHtmlArtifact(a)||isCssArtifact(a));
+  if(!targets.length)return{ok:false,error:"No HTML/CSS found. Pass names, or use the html parameter to review markup directly."};
+  const rtl=explicitRtl??targets.some(a=>looksRightToLeft(String(a.content||"")));
+  for(const a of targets){
+   const content=String(a.content||"");
+   if(isHtmlArtifact(a)){
+    reports.push(analyzeDomUx(a.name,new DOMParser().parseFromString(content,"text/html"),{rtl}));
+    const style=inlineStyleSource(content);
+    if(style.trim())reports.push(analyzeStyleUx(`${a.name} <style>`,style,{rtl}));
+   }else reports.push(analyzeStyleUx(a.name,content,{rtl}));
+  }
+  if(rtl)notes.push("Right-to-left content detected, so RTL mirroring rules were applied.");
+ }
+ notes.push("Structure is parsed without executing scripts or fetching resources. Use browser_preview and responsive_test for rendered geometry and overflow.");
+ return buildReviewResult({kind:"ux_review",reports,notes});
+}
+
+async function executeTool(tool,args){if(!await askPermission(tool,args))return{ok:false,error:"User denied tool execution"};if(tool.source==="mcp"){const server=await idbGet("mcp",tool.serverId),original=(server.tools||[]).find(t=>t.name===tool.originalName);return await callMcp(server,original,args)}if(tool.source==="http"){const t=await idbGet("customtools",tool.httpId);return await executeHttpTool(t,args)}switch(tool.name){case"skill_list":{const skills=(await idbAll("skills")).filter(s=>s.enabled!==false).map(skillInfo).map(x=>({name:x.name,description:x.description,version:x.version}));return{skills}}case"skill_read":{const skills=(await idbAll("skills")).filter(s=>s.enabled!==false);const wanted=normalizeSkillName(args.name);const hit=skills.find(s=>normalizeSkillName(skillInfo(s).name)===wanted);if(!hit)return{ok:false,error:`Skill ${String(args.name||"").trim()||"(empty)"} not found`};const resources=(await skillResources(wanted)).map(x=>({path:x.name,chars:String(x.artifact.content||"").length}));return{ok:true,name:skillInfo(hit).name,content:hit.content,resources,instruction:resources.length?"Load only the specific resource needed with skill_resource_read; do not load all resources by default.":"No optional resources are installed for this Skill."}}case"skill_resource_list":{return{ok:true,name:normalizeSkillName(args.name),resources:(await skillResources(args.name)).map(x=>({path:x.name,chars:String(x.artifact.content||"").length,language:x.artifact.language}))}}case"skill_resource_read":{const resources=await skillResources(args.name),wanted=projectPath(args.path||"");const hit=resources.find(x=>projectPath(x.name)===wanted);if(!hit)return{ok:false,error:"Skill resource not found"};const full=String(hit.artifact.content||""),offset=Math.max(0,Math.min(full.length,Math.floor(Number(args.offset)||0))),maxChars=Math.max(1000,Math.min(40000,Math.floor(Number(args.maxChars)||12000))),end=Math.min(full.length,offset+maxChars);return{ok:true,name:normalizeSkillName(args.name),path:hit.name,offset,end,totalChars:full.length,hasMore:end<full.length,nextOffset:end<full.length?end:null,content:full.slice(offset,end)}}case"web_search":return await webSearch(args.query);case"memory_save":{const item={id:uid(),projectId:state.settings.activeProjectId,scope:args.scope==="global"?"global":"project",memoryLayer:String(args.memoryLayer||((args.scope==="global")?"user":"project")),chatId:args.memoryLayer==="session"?activeChatId:null,type:String(args.type||"fact").slice(0,30),pinned:!!args.pinned,text:String(args.text||"").slice(0,4000),tags:Array.isArray(args.tags)?args.tags.slice(0,12):[],updated:Date.now(),created:Date.now()};await idbPut("memory",item);if(state.settings.memoryConsolidation!==false)await consolidateMemories();await renderMemory();return{saved:true,id:item.id,layer:memoryLayer(item)}}case"memory_search":{const q=String(args.query||"").toLowerCase(),items=(await idbAll("memory")).filter(x=>x.scope==="global"||!x.projectId||x.projectId===state.settings.activeProjectId).map(x=>({...x,score:(x.pinned?2:0)+(x.text.toLowerCase().includes(q)?3:0)+((x.tags||[]).some(t=>t.toLowerCase().includes(q))?2:0)})).sort((a,b)=>b.score-a.score||b.updated-a.updated).slice(0,8).map(x=>({text:x.text,tags:x.tags,type:x.type,updated:x.updated}));return{items}}case"session_search":return await sessionSearch(args);case"virtual_terminal":return await virtualTerminal(args);case"code_execute":return await executeJavaScriptSandbox(args);case"todo_plan":return await updateTodoPlan(args);case"delegate_task":return await delegateTask(args);case"agent_evaluate":return await evaluateAgentRun(args);case"skill_learn":return await skillLearn(args);case"sandbox_status":return await sandboxGateway("status");case"sandbox_sync":return await sandboxSyncProject();case"sandbox_read":return await sandboxRead(args);case"sandbox_write":return await sandboxWrite(args);case"sandbox_exec":return await sandboxExec(args);case"browser_navigate":return await browserNavigate(args.url);case"browser_follow":return await browserFollow(args.index);case"browser_extract":return browserExtract(args);case"artifact_list":{const q=String(args.query||"").toLowerCase(),items=(await idbAll("artifacts")).filter(x=>x.projectId===state.settings.activeProjectId&&(!q||`${x.name} ${x.language}`.toLowerCase().includes(q))).slice(0,30).map(x=>({id:x.id,name:x.name,language:x.language,chars:String(x.content||"").length,updated:x.updated}));return{items}}case"artifact_read":{const items=(await idbAll("artifacts")).filter(x=>x.projectId===state.settings.activeProjectId),hit=items.find(x=>x.id===args.id)||items.find(x=>x.name.toLowerCase()===String(args.name||"").toLowerCase());if(!hit)return{error:"Artifact not found"};const full=String(hit.content||""),offset=Math.max(0,Math.min(full.length,Math.floor(Number(args.offset)||0))),maxChars=Math.max(1000,Math.min(60000,Math.floor(Number(args.maxChars)||24000))),end=Math.min(full.length,offset+maxChars);return{id:hit.id,name:hit.name,language:hit.language,offset,end,totalChars:full.length,returnedChars:end-offset,hasMore:end<full.length,nextOffset:end<full.length?end:null,content:full.slice(offset,end)}}case"project_search":return await projectSearchExact(args.query||"",args);case"artifact_save":{const items=await idbAll("artifacts"),hit=items.find(x=>x.projectId===state.settings.activeProjectId&&x.name.toLowerCase()===String(args.name||"").toLowerCase());const obj=await saveArtifactRecord({id:hit?.id,name:args.name,language:args.language||inferLanguageFromName(args.name),content:String(args.content||"")});await renderArtifacts();return{saved:true,id:obj.id,name:obj.name}}case"artifact_edit":return await artifactEdit(args);case"artifact_delete":return await artifactDelete(args);case"browser_preview":return await renderArtifactAudit(args.name||"index.html",args.width||390,args.height||844);case"responsive_test":return await responsiveAudit(args);case"html_css_validator":return await validateHtmlCss(args);case"js_validator":return await reviewJavaScript(args);case"security_audit":return await reviewSecurity(args);case"ux_review":return await reviewUx(args);case"environment_list":return await listActiveEnvironment();case"environment_set":return await setActiveEnvironment(args);case"publish_project":return await publishActiveProject(args);default:return{error:"Unknown tool"}}}
 function classifySearchRoute(userText="",query=""){
  const forced=state.settings.searchRouting||"auto";if(forced==="web")return"web";if(forced==="visual")return"visual";
  const t=`${userText} ${query}`.toLowerCase();
@@ -728,7 +1455,7 @@ function flushStream(){streamDisplayText=streamText;const x=$("#streamingText");
 function drainStream(maxMs=520){return new Promise(resolve=>{const started=performance.now();const tick=()=>{if(streamDisplayText.length>=streamText.length||performance.now()-started>=maxMs){flushStream();resolve();return}if(!streamRAF)streamRAF=requestAnimationFrame(streamStep);requestAnimationFrame(tick)};tick()})}
 function endStream(){document.body.dataset.agentState="idle";flushStream();$("#streamingMessage")?.remove();if(streamRAF)cancelAnimationFrame(streamRAF);streamRAF=0;streamLastPaint=0;streamActivityKind="";streamSearchQuery="";updateScrollButton()}
 function finalizeStreamDom(message){document.body.dataset.agentState="idle";flushStream();if(streamRAF)cancelAnimationFrame(streamRAF);streamRAF=0;streamLastPaint=0;streamActivityKind="";streamSearchQuery="";const el=$("#streamingMessage");if(!el)return;el.classList.remove("streaming");el.removeAttribute("id");const live=el.querySelector("#liveActivity");if(live){const wrap=document.createElement("div");wrap.innerHTML=responseActivityHtml(message.activityTrace||currentRunActivity);live.replaceWith(wrap.firstElementChild||document.createTextNode(""))}const meta=el.querySelector(".meta");if(meta)meta.textContent=`AiWay • ${new Date(message.time||Date.now()).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"})}`;const text=el.querySelector("#streamingText");if(text){text.removeAttribute("id");text.dataset.messageText=message.id;text.innerHTML=renderMessageText(message)}hydrateInlineArtifact(el,message);const bubble=el.querySelector(".bubble");if(bubble&&!bubble.querySelector(".message-bottom")){const bottom=document.createElement("div");bottom.className="message-bottom";const actions=document.createElement("div");actions.className="message-actions";actions.innerHTML=`<button class="mini-action" data-copymsg="${esc(message.id)}">نسخ الرد</button><button class="mini-action" data-retrymsg="${esc(message.id)}">↻ إعادة المحاولة</button><button class="mini-action" data-branchmsg="${esc(message.id)}">↗ تفرع</button><button class="mini-action" data-pinmsg="${esc(message.id)}">☆ تثبيت</button>`;bottom.appendChild(actions);if(message.role==="assistant"){const wrap=document.createElement("div");wrap.innerHTML=responseFooter(message);if(wrap.firstElementChild)bottom.appendChild(wrap.firstElementChild)}bubble.appendChild(bottom)}if(followStream)scrollToBottom({force:false});updateScrollButton()}
-function toolVisual(name=""){const n=String(name).toLowerCase();if(n==="assistant_plan")return{icon:"✦",label:"يفكر",activity:"thinking"};if(n==="assistant_write"||n==="assistant_finalize")return{icon:"✎",label:n==="assistant_finalize"?"صياغة الرد النهائي":"بكتب الرد",activity:"writing"};if(n==="model_router")return{icon:"↯",label:"Model Router",activity:"thinking"};if(n==="smart_router")return{icon:"↯",label:"Smart Router",activity:"thinking"};if(n==="context_manager")return{icon:"◎",label:"Smart Context",activity:"thinking"};if(n==="project_search")return{icon:"⌕",label:"بحث المشروع",activity:"tool"};if(n.includes("memory"))return{icon:"◉",label:"الذاكرة",activity:"tool"};if(n.includes("web")||n==="search")return{icon:"⌕",label:"بحث الويب",activity:"searching"};if(n.includes("skill"))return{icon:"◇",label:n.includes("read")?"قراءة Skill":"Skills",activity:"skill"};if(n.includes("file")||n.includes("pdf"))return{icon:"▤",label:"قراءة ملف",activity:"tool"};if(n.includes("github"))return{icon:"⌘",label:"GitHub",activity:"tool"};if(n==="browser_preview")return{icon:"▣",label:"Browser Preview",activity:"tool"};if(n==="responsive_test")return{icon:"↔",label:"Responsive Test",activity:"tool"};if(n==="html_css_validator")return{icon:"✓",label:"HTML/CSS Validator",activity:"tool"};return{icon:"⚙",label:String(name||"أداة").replace(/^mcp__[^_]+__/,""),activity:"tool"}}
+function toolVisual(name=""){const n=String(name).toLowerCase();if(n==="assistant_plan")return{icon:"✦",label:"يفكر",activity:"thinking"};if(n==="assistant_write"||n==="assistant_finalize")return{icon:"✎",label:n==="assistant_finalize"?"صياغة الرد النهائي":"بكتب الرد",activity:"writing"};if(n==="model_router")return{icon:"↯",label:"Model Router",activity:"thinking"};if(n==="smart_router")return{icon:"↯",label:"Smart Router",activity:"thinking"};if(n==="context_manager")return{icon:"◎",label:"Smart Context",activity:"thinking"};if(n==="project_search")return{icon:"⌕",label:"بحث المشروع",activity:"tool"};if(n.includes("memory"))return{icon:"◉",label:"الذاكرة",activity:"tool"};if(n.includes("web")||n==="search")return{icon:"⌕",label:"بحث الويب",activity:"searching"};if(n.includes("skill"))return{icon:"◇",label:n.includes("read")?"قراءة Skill":"Skills",activity:"skill"};if(n.includes("file")||n.includes("pdf"))return{icon:"▤",label:"قراءة ملف",activity:"tool"};if(n.includes("github"))return{icon:"⌘",label:"GitHub",activity:"tool"};if(n==="browser_preview")return{icon:"▣",label:"Browser Preview",activity:"tool"};if(n==="responsive_test")return{icon:"↔",label:"Responsive Test",activity:"tool"};if(n==="html_css_validator")return{icon:"✓",label:"HTML/CSS Validator",activity:"tool"};if(n==="js_validator")return{icon:"✓",label:"JS Validator",activity:"tool"};if(n==="security_audit")return{icon:"⛨",label:"Security Audit",activity:"tool"};if(n==="ux_review")return{icon:"◈",label:"UX Review",activity:"tool"};return{icon:"⚙",label:String(name||"أداة").replace(/^mcp__[^_]+__/,""),activity:"tool"}}
 function toolStateClass(status=""){return /خطأ|error/i.test(status)?"error":/تم|done/i.test(status)?"done":"running"}
 function activityStatusLabel(status=""){return /خطأ|error/i.test(status)?"تعذّر":/تم|done/i.test(status)?"اكتمل":"جارٍ التنفيذ"}
 function traceIconSvg(name=""){const v=toolVisual(name),a=ACTIVITY[v.activity]||ACTIVITY.tool;return a.svg}
@@ -739,8 +1466,8 @@ function renderLiveTrace(){const box=$("#activityTraceList");if(!box)return;cons
 function pushRunActivity(name,status="يعمل…",detail="",title=""){const now=Date.now(),last=currentRunActivity[currentRunActivity.length-1],done=/تم|done|خطأ|error/i.test(status||""),isSearch=/web|search/i.test(String(name));if(last&&last.name===name&&!/تم|done|خطأ|error/i.test(last.status||"")&&done){last.status=status;last.detail=String(detail||last.detail||"").slice(0,360);last.title=title||last.title;last.time=now;last.durationMs=Math.max(0,now-(last.startedAt||last.time||now));if(isSearch)last.sources=normalizeSources(currentRunSources)}else currentRunActivity.push({id:uid(),name,status,detail:String(detail||"").slice(0,360),title:title||toolVisual(name).label,time:now,startedAt:now,durationMs:done?0:null,sources:isSearch&&done?normalizeSources(currentRunSources):[]});renderLiveTrace()}
 function completePendingActivities(detail=""){for(const x of currentRunActivity)if(!/تم|done|خطأ|error/i.test(x.status||"")){x.status="تم";if(detail&&x.name==="assistant_write")x.detail=detail}renderLiveTrace()}
 function shortArg(value,max=90){const x=String(value??"").replace(/\s+/g," ").trim();return x.length>max?x.slice(0,max-1)+"…":x}
-function toolStartPreview(tool,args={}){const n=String(tool?.originalName||tool?.name||"").toLowerCase();if(n==="project_search")return `بدور داخل المشروع عن: ${shortArg(args.query,110)}`;if(n.includes("web")||n==="search")return args.query?`ببحث عن: ${shortArg(args.query,120)}`:"ببحث في المصادر المتاحة";if(n.includes("skill_read"))return `بقرأ Skill /${shortArg(args.name||"",70)} وبطبّق تعليماته`;if(n.includes("skill"))return "براجع الـSkills المناسبة للمهمة";if(n==="artifact_read")return `بقرأ ${shortArg(args.name||args.id||"الملف",90)}`;if(n==="artifact_save")return `بكتب التعديلات في ${shortArg(args.name||"الملف",90)}`;if(n==="html_css_validator")return "بفحص HTML/CSS بحثًا عن أخطاء";if(n==="responsive_test")return "بختبر التصميم على مقاسات شاشات مختلفة";if(n==="browser_preview")return `بعاين ${shortArg(args.name||"الواجهة",80)} في المتصفح`;if(n.includes("memory_search"))return `براجع الذاكرة عن: ${shortArg(args.query,100)}`;if(n.includes("memory_save"))return "بحفظ المعلومة المهمة في الذاكرة";return `بشغّل ${toolVisual(tool?.originalName||tool?.name).label}`}
-function toolDonePreview(tool,args={},result={}){const n=String(tool?.originalName||tool?.name||"").toLowerCase();if(result?.error)return `تعذّر ${toolVisual(tool?.originalName||tool?.name).label}: ${shortArg(result.error,180)}`;if(n==="project_search")return `لقيت الأجزاء الأقرب للمطلوب داخل المشروع`;if(n.includes("web")||n==="search"){const count=normalizeSources(extractUrlsFromValue(result)).length||result?.results?.length||result?.items?.length||0;return count?`لقيت ${count} مصدر/نتيجة وبحللهم الآن`:`خلصت البحث وبحلل النتائج الآن`}if(n.includes("skill_read"))return `قرأت Skill /${shortArg(args.name||"",70)} وهستخدم تعليماته في التنفيذ`;if(n==="html_css_validator"){const e=result?.summary?.errors??result?.errors,w=result?.summary?.warnings??result?.warnings;return e||w?`اكتشفت ${e||0} خطأ و${w||0} تحذير وهاخدهم في الاعتبار`:"الفحص خلص بدون أخطاء حرجة"}if(n==="responsive_test")return result?.ok?"اختبار الـResponsive نجح على المقاسات المختبرة":"لقيت مشاكل Responsive وهعالجها في الرد";if(n==="artifact_save")return `حفظت التعديل في ${shortArg(args.name||"الملف",90)}`;return `${toolVisual(tool?.originalName||tool?.name).label} اكتملت`}
+function toolStartPreview(tool,args={}){const n=String(tool?.originalName||tool?.name||"").toLowerCase();if(n==="project_search")return `بدور داخل المشروع عن: ${shortArg(args.query,110)}`;if(n.includes("web")||n==="search")return args.query?`ببحث عن: ${shortArg(args.query,120)}`:"ببحث في المصادر المتاحة";if(n.includes("skill_read"))return `بقرأ Skill /${shortArg(args.name||"",70)} وبطبّق تعليماته`;if(n.includes("skill"))return "براجع الـSkills المناسبة للمهمة";if(n==="artifact_read")return `بقرأ ${shortArg(args.name||args.id||"الملف",90)}`;if(n==="artifact_save")return `بكتب التعديلات في ${shortArg(args.name||"الملف",90)}`;if(n==="html_css_validator")return "بفحص HTML/CSS بحثًا عن أخطاء";if(n==="js_validator")return "براجع كود JavaScript قبل التسليم بحثًا عن أخطاء برمجية";if(n==="security_audit")return "بفحص الكود أمنيًا على معايير OWASP";if(n==="ux_review")return "براجع تجربة المستخدم وإمكانية الوصول";if(n==="responsive_test")return "بختبر التصميم على مقاسات شاشات مختلفة";if(n==="browser_preview")return `بعاين ${shortArg(args.name||"الواجهة",80)} في المتصفح`;if(n.includes("memory_search"))return `براجع الذاكرة عن: ${shortArg(args.query,100)}`;if(n.includes("memory_save"))return "بحفظ المعلومة المهمة في الذاكرة";return `بشغّل ${toolVisual(tool?.originalName||tool?.name).label}`}
+function toolDonePreview(tool,args={},result={}){const n=String(tool?.originalName||tool?.name||"").toLowerCase();if(result?.error)return `تعذّر ${toolVisual(tool?.originalName||tool?.name).label}: ${shortArg(result.error,180)}`;if(n==="project_search")return `لقيت الأجزاء الأقرب للمطلوب داخل المشروع`;if(n.includes("web")||n==="search"){const count=normalizeSources(extractUrlsFromValue(result)).length||result?.results?.length||result?.items?.length||0;return count?`لقيت ${count} مصدر/نتيجة وبحللهم الآن`:`خلصت البحث وبحلل النتائج الآن`}if(n.includes("skill_read"))return `قرأت Skill /${shortArg(args.name||"",70)} وهستخدم تعليماته في التنفيذ`;if(n==="html_css_validator"){const e=result?.summary?.errors??result?.errors,w=result?.summary?.warnings??result?.warnings;return e||w?`اكتشفت ${e||0} خطأ و${w||0} تحذير وهاخدهم في الاعتبار`:"الفحص خلص بدون أخطاء حرجة"}if(n==="responsive_test")return result?.ok?"اختبار الـResponsive نجح على المقاسات المختبرة":"لقيت مشاكل Responsive وهعالجها في الرد";if(n==="js_validator"||n==="security_audit"||n==="ux_review"){const sum=result?.summary||{},blocking=sum.blocking||0,total=sum.findings||0,label=n==="js_validator"?"المراجعة البرمجية":n==="security_audit"?"الفحص الأمني":"مراجعة UX";if(blocking)return `${label}: لقيت ${blocking} مشكلة حرجة لازم تتصلح قبل الكود النهائي`;return total?`${label}: مفيش مشاكل حرجة، و${total} ملاحظة أقل خطورة براجعها`:`${label}: خلصت بدون ملاحظات`;}if(n==="artifact_save")return `حفظت التعديل في ${shortArg(args.name||"الملف",90)}`;return `${toolVisual(tool?.originalName||tool?.name).label} اكتملت`}
 function normalizeSkillName(value=""){return String(value||"").trim().replace(/^\/+/,"").toLowerCase().replace(/\s+/g,"-")}
 async function resolveAgentTool(defs,call){
   const direct=defs.find(t=>t.name===call.name);if(direct)return{tool:direct,args:call.args||{},alias:false};

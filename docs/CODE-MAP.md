@@ -81,3 +81,36 @@ Skills are Markdown with YAML frontmatter (`name`, `description`, `version`,
 
 `npm test` runs every suite. Any test file added to `tests/` must be wired into a
 `package.json` script or it never runs. See `docs/known-issues.md` for tracked debt.
+
+## Pre-publish code review tools
+
+Three tools review generated code before the agent delivers a final version.
+They live in the "Static code review" block in `assets/app.js`, just above
+`executeTool`, and are driven by the `code-review` Skill.
+
+| Tool | Scope | Rules |
+| --- | --- | --- |
+| `js_validator` | JS/TS correctness and reliability, incl. inline `<script>` | structural parse check + 15 rules |
+| `security_audit` | Security risk mapped to OWASP Top 10:2025 | 32 rules + 7 secret detectors |
+| `ux_review` | Accessibility, WCAG contrast, interaction states, RTL | CSS + DOM rules |
+
+Design constraints worth preserving:
+
+- **No `eval` / `new Function`.** The site ships under CSP `script-src 'self'`
+  with no `unsafe-eval` (`vercel.json`), so the parse check is a structural
+  bracket/literal analyzer, not an evaluator. `tests/code-review-tools.mjs`
+  enforces this.
+- **Two-layer masking.** `maskJsSource` produces one layer with strings blanked
+  (for rules matching code *shape*, e.g. `eval(`) and one with strings kept (for
+  rules reading string *contents*, e.g. `"md5"`, SQL fragments). A rule opts into
+  the second layer with `strings:true`. Forgetting that flag makes a rule
+  silently dead — this actually happened and is now covered by a test.
+- **Findings are actionable.** Every finding carries file, line, evidence,
+  severity and a fix, so the agent can use `artifact_edit` instead of rewriting
+  files. `critical`/`high` block delivery; `medium`/`low` are judgement calls.
+- **Limitations are reported, not hidden.** TypeScript/JSX input returns an
+  explicit `parseNote`, and per-rule caps disclose suppressed matches, so a clean
+  report is trustworthy.
+
+`ux_review` is static (DOMParser, nothing executes). Rendered geometry and
+overflow remain the job of `browser_preview` and `responsive_test`.
