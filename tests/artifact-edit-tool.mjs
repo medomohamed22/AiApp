@@ -109,4 +109,51 @@ const perms = app.match(/toolPermissions:\{([^}]*)\}/)[1];
 assert.match(perms, /artifact_edit:"ask"/, 'artifact_edit must default to ask');
 assert.match(perms, /artifact_delete:"ask"/, 'artifact_delete must default to ask');
 
-console.log('artifact edit/delete tool guards ok • 10 cases');
+
+// 11) CRLF/LF drift is recovered safely without another model round.
+seed('function x() {\r\n  return 1;\r\n}\r\n');
+out = await artifactEdit({ name: 'app.js', oldText: 'function x() {\n  return 1;\n}', newText: 'function x() {\n  return 2;\n}' });
+assert.equal(out.ok, true);
+assert.equal(out.changed, true);
+assert.equal(out.verified, true);
+assert.equal(out.recoveredEdits, 1);
+assert.match(store.get('a1').content, /return 2/);
+
+// 12) Unique whitespace/indentation drift is recovered safely.
+seed('if (ready) {\n    doThing();\n}\n');
+out = await artifactEdit({ name: 'app.js', oldText: 'if (ready) {\n  doThing();\n}', newText: 'if (ready) {\n  doOther();\n}' });
+assert.equal(out.ok, true);
+assert.equal(out.changed, true);
+assert.equal(out.details[0].mode, 'whitespace-normalized');
+
+// 13) If the requested replacement is already present, it is a verified idempotent success.
+seed('const mode = "fixed";\n');
+out = await artifactEdit({ name: 'app.js', oldText: 'const mode = "broken";', newText: 'const mode = "fixed";' });
+assert.equal(out.ok, true);
+assert.equal(out.changed, false);
+assert.equal(out.alreadyApplied, true);
+assert.equal(out.reason, 'already_applied');
+
+// 14) Multiple edits are persisted atomically in one tool call.
+seed('const a = 1;\nconst b = 2;\nconst c = 3;\n');
+out = await artifactEdit({ name: 'app.js', edits: [
+  { oldText: 'const a = 1;', newText: 'const a = 10;' },
+  { oldText: 'const c = 3;', newText: 'const c = 30;' }
+] });
+assert.equal(out.ok, true);
+assert.equal(out.changed, true);
+assert.equal(out.editCount, 2);
+assert.equal(out.replacements, 2);
+assert.equal(store.get('a1').content, 'const a = 10;\nconst b = 2;\nconst c = 30;\n');
+
+// 15) A failed later edit rolls the whole batch back (no partial save).
+seed('one\ntwo\nthree\n');
+out = await artifactEdit({ name: 'app.js', edits: [
+  { oldText: 'one', newText: 'ONE' },
+  { oldText: 'missing', newText: 'MISSING' }
+] });
+assert.equal(out.ok, false);
+assert.equal(out.reason, 'target_not_found');
+assert.equal(store.get('a1').content, 'one\ntwo\nthree\n');
+
+console.log('artifact edit/delete tool guards ok • 15 cases');
