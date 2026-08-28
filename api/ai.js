@@ -224,6 +224,18 @@ export default async function handler(req, res) {
       return json(res, 400, { error: 'Unsupported provider' });
     }
 
+    if (!upstream.ok) {
+      const status = upstream.status || 502;
+      const raw = await upstream.clone().text().catch(() => '');
+      if (!String(raw || '').trim()) {
+        const message = status === 429
+          ? 'مزود النموذج رفض الطلب بسبب Rate Limit (HTTP 429). قلّل عدد جولات الـAgent أو انتظر قليلًا ثم أعد المحاولة.'
+          : status === 413
+            ? 'حجم طلب النموذج كبير جدًا على بوابة المزود (HTTP 413). تم تفعيل ضغط السياق في العميل؛ قلّل المرفقات أو أعد المحاولة.'
+            : `مزود النموذج رجّع HTTP ${status} بدون تفاصيل. هذا خطأ upstream وليس خطأ عرض في AiWay.`;
+        return json(res, status, { error: { code: 'UPSTREAM_EMPTY_ERROR', message, upstream_status: status } });
+      }
+    }
     await pipeFetch(upstream, res, signal);
   } catch (error) {
     if (signal.aborted || error?.name === 'AbortError') {
