@@ -27,3 +27,7 @@ Run the full regression suite before publishing:
 ```bash
 npm test
 ```
+
+## مجلس النماذج / Delegate Council
+
+وضع جديد من قائمة Agent Mode لتشكيل فريق من 2–4 نماذج، وتخصيص الأدوار والمهام والجولات ومنسق الخلاصة، مع بث المساهمات وتصديرها. يعتمد على API المزودين الحالية، مستوحى من delegate-skills ولا يشغّل CLI. راجع [دليل التشغيل والدمج](docs/DELEGATE-COUNCIL.ar.md).

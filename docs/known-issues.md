@@ -77,3 +77,7 @@ Rules to preserve: never gate image format on a declared mime alone, and never
 forward an image URL to a provider without `safeVisionUrl`/`safeVisionDataUrl`.
 Dropping one image is always preferable to failing the whole reply. Covered by
 `tests/vision-image-format.mjs`.
+
+## تحديث 2026-09-27: اختبارات الصيانة
+
+قائمة inert settings السابقة لم تعد تصف النسخة الحالية: أصبح runtime يقرأ المفاتيح الخمسة. أُزيلت من قائمة الاستثناءات في الاختبار مع بقاء منع أي إعداد جديد غير مستخدم. تم تصحيح تحويل URL إلى مسار Windows في اختبار Exa واستعادة اختبار دورة حياة Harness المفقود.

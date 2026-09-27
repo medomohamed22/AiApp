@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#f7f5ff" />
 <title>AiWay — AI Agent</title>
-<link rel="stylesheet" href="/assets/app.css?v=5.5-premium-ui" />
+<link rel="stylesheet" href="/assets/app.css?v=5.6-delegate-council" />
 </head>
 <body>
 <div class="app">
@@ -47,12 +47,18 @@
       <button class="btn icon mobile-only" id="menuBtn" aria-label="فتح القائمة"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
       <div class="titlebox"><b id="chatTitle">محادثة جديدة</b><small id="activeInfo">جاهز</small></div>
       <select class="agent-mode-select" id="agentModeSelect" title="اختر Agent Mode قبل بدء المحادثة" aria-label="Agent Mode">
-        <option value="normal">Normal</option><option value="coding">Coding</option><option value="debug">Debug</option><option value="build">Build Feature</option><option value="security">Security Review</option><option value="review">Code Review</option>
+        <option value="delegate">✦ مجلس النماذج</option><option value="normal">Normal</option><option value="coding">Coding</option><option value="debug">Debug</option><option value="build">Build Feature</option><option value="security">Security Review</option><option value="review">Code Review</option>
       </select>
       <button class="project-pill" id="projectPill" title="تغيير المشروع">Default</button>
       <div class="provider-pill"><i></i><span id="providerPill">Gemini</span></div>
       <button class="btn icon" id="quickTools" title="مكتبة البرومبتات — Ctrl/⌘ K" aria-label="مكتبة البرومبتات">⌘</button>
     </header>
+    <section class="council-panel" id="delegatePanel" hidden aria-label="مجلس النماذج">
+      <div class="council-banner"><div class="council-emblem" aria-hidden="true">✦</div><div class="grow"><span class="council-eyebrow">DELEGATE COUNCIL</span><h2>أكثر من منظور. إجابة أفضل.</h2><p id="delegateSummary"></p></div><button class="btn primary" id="delegateConfigure">⚙ تشكيل الفريق</button></div>
+      <div class="council-team" id="delegateTeam"></div>
+      <div class="council-status"><span id="delegateRunStatus" role="status"></span><button class="btn sm" id="delegateExport" disabled>↓ تصدير النقاش</button></div>
+      <div class="council-transcript" id="delegateTranscript"></div>
+    </section>
     <section class="messages" id="messages"><div class="messages-inner" id="messagesInner"></div></section><button class="scroll-bottom" id="scrollBottomBtn" title="النزول إلى آخر الرد" aria-label="النزول إلى آخر الرد"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/><path d="M12 4v11"/></svg></button>
     <div class="composer-wrap">
       <div class="composer" style="position:relative">
@@ -90,7 +96,7 @@
 </div>
 
 <div class="backdrop" id="settingsSheet"><div class="sheet">
-  <div class="sheet-head"><div class="grow"><h2>الإعدادات</h2><p class="sub">Model واحد لكل محادثة. الإعدادات العامة تحفظ محليًا، أما مفاتيح الـAPI فتبقى داخل Vercel Environment Variables ولا تصل للمتصفح.</p></div><button class="btn icon close-sheet">✕</button></div>
+  <div class="sheet-head"><div class="grow"><h2>الإعدادات</h2><p class="sub">الموديل الافتراضي للمحادثة؛ وضع مجلس النماذج له فريق مستقل من «تشكيل الفريق». الإعدادات العامة تحفظ محليًا، أما مفاتيح الـAPI فتبقى داخل Vercel Environment Variables ولا تصل للمتصفح.</p></div><button class="btn icon close-sheet">✕</button></div>
   <div class="notice">نسخة Vercel: مفاتيح OpenCode Zen وHermes وGemini وOpenRouter وB.ai وExa تُقرأ فقط داخل Serverless Functions. Hermes يحتاج HERMES_BASE_URL قابلًا للوصول من Vercel، وليس 127.0.0.1 على جهازك.</div>
   <div class="card">
     <h3>الموديل</h3>
@@ -266,10 +272,21 @@
   </div>
 </div>
 
+<div class="backdrop" id="delegateSheet"><div class="sheet council-sheet" role="dialog" aria-modal="true" aria-labelledby="delegateTitle">
+  <div class="sheet-head"><div class="grow"><span class="council-eyebrow">BUILD YOUR TEAM</span><h2 id="delegateTitle">كل نموذج، دور مختلف.</h2><p class="sub">اختر النماذج وحدّد مسؤولياتها. يقرأ كل عضو ما سبقه، ثم يجمع المنسّق النتيجة.</p></div><button class="btn icon close-sheet" aria-label="إغلاق إعدادات المجلس">✕</button></div>
+  <div class="council-workflow"><span>01 · وزّع الأدوار</span><span>02 · ناقش وراجع</span><span>03 · اجمع الخلاصة</span></div>
+  <div id="delegateMembers" class="council-members"></div>
+  <button class="btn full" id="delegateAdd">＋ إضافة عضو (حتى 4)</button>
+  <div class="grid2 council-options"><label>جولات النقاش<select class="field" id="delegateRounds"><option value="1">جولة واحدة · سريع</option><option value="2">جولتان · متوازن</option><option value="3">ثلاث جولات · معمّق</option></select></label><label>منسّق الخلاصة<select class="field" id="delegateModerator"></select></label></div>
+  <p class="sub" id="delegateEstimate"></p><p class="council-note">تعمل النماذج بمفاتيح المزودين المحفوظة على الخادم. يمكن تكرار الموديل بأدوار مختلفة. هذا الوضع للنقاش النصي؛ لا يشغّل أدوات أو يعدّل ملفات.</p>
+  <p id="delegateEditorError" class="council-error" role="alert"></p><button class="btn primary full" id="delegateSave">حفظ الفريق وبدء النقاش من المحادثة</button>
+  <p class="council-credit">مستوحى من <a href="https://github.com/amElnagdy/delegate-skills" target="_blank" rel="noopener noreferrer">delegate-skills ↗</a> · تكييف للويب عبر API</p>
+</div></div>
 <div class="toast" id="toast"></div>
 <div class="askbox" id="askBox"><h3>السماح بتشغيل الأداة؟</h3><p id="askText"></p><pre id="askArgs"></pre><div class="row"><button class="btn primary grow" id="askAllow">سماح هذه المرة</button><button class="btn" id="askDeny">رفض</button></div></div>
 <div class="secretbox" id="secretBox" role="dialog" aria-modal="true" aria-labelledby="secretTitle"><h3 id="secretTitle">إضافة Secret للمشروع</h3><p id="secretHelp">أدخل قيمة المفتاح. سيتم إرسالها مباشرة إلى Vercel ولن تدخل إلى المحادثة.</p><div><span class="secret-key" id="secretKeyLabel">API_KEY</span></div><div style="height:9px"></div><input class="field" id="secretValueInput" type="password" autocomplete="new-password" placeholder="الصق API key هنا" /><div class="secret-security"><span>🔒</span><span>القيمة لا تُحفظ في IndexedDB أو Artifacts أو رسائل المحادثة، ولا يتم إرجاعها من الأداة للنموذج.</span></div><div class="row wrap"><a class="btn sm" id="secretProviderLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">فتح لوحة مزود الـAPI ↗</a><span class="grow"></span><button class="btn" id="secretCancelBtn">إلغاء</button><button class="btn primary" id="secretSaveBtn">حفظ في Vercel</button></div></div>
 
-<script src="/assets/app.js?v=5.5-premium-ui" defer></script>
+<script src="/assets/delegate.js?v=1" defer></script>
+<script src="/assets/app.js?v=5.6-delegate-council" defer></script>
 </body>
 </html>

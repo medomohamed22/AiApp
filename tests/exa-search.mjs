@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import handler from '../api/search.js';
 
@@ -65,7 +66,7 @@ try {
   assert.match(res.body, /Relevant Exa highlight/);
   assert.match(res.body, /https:\/\/example\.com\/result/);
 
-  const root = path.resolve(new URL('..', import.meta.url).pathname);
+  const root = fileURLToPath(new URL('..', import.meta.url));
   const files = ['api/search.js','api/health.js','assets/app.js','index.html','README.md','.env.example','AGENTS.md'];
   const joined = files.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
   assert.doesNotMatch(joined, /jina/i, 'Jina references should be fully removed');

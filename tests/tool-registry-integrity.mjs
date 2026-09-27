@@ -97,13 +97,7 @@ const INTERNAL_ONLY = new Set(['activeProjectId']);
 // code reads them yet. Documented in docs/known-issues.md. This list is a debt
 // ceiling, not an approval: it must only ever shrink. Wiring one of these, or
 // removing its control, should also remove it from this list.
-const KNOWN_INERT_SETTINGS = [
-  'agentInspector',
-  'contextMode',
-  'mcpRouter',
-  'skillRouter',
-  'workspaceAwareness'
-];
+const KNOWN_INERT_SETTINGS = [];
 
 const placebo = [];
 for (const key of settingKeys) {

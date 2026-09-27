@@ -114,3 +114,9 @@ Design constraints worth preserving:
 
 `ux_review` is static (DOMParser, nothing executes). Rendered geometry and
 overflow remain the job of `browser_preview` and `responsive_test`.
+
+## Delegate Council (2026-09-27)
+
+`assets/delegate.js` is a dependency-free discussion coordinator exposed as `AiWayDelegate`; loaded before `app.js`. It validates a per-chat team (2–4 participants, 1–3 rounds), sequences peer review and a final moderator call, and reports progress/failure/cancellation. It never executes CLI commands or tools.
+
+The Delegate Council block in `assets/app.js` owns the editor, provider adapters, IndexedDB persistence, transcript export, and the `runAgent` early dispatch. It reuses `/api/ai` and `/api/models`. `tests/delegate-council.mjs` exercises orchestration and the actual app adapter with mocked providers; no live keys required. See `DELEGATE-COUNCIL.ar.md` for user instructions and the distinction from upstream delegate-skills.

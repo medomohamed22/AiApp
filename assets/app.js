@@ -213,6 +213,7 @@ function provider429DelayMs(response,provider="",attempt=0){
 function noteProvider429(provider,delayMs){const until=Date.now()+Math.max(1000,delayMs||0),prev=providerCooldownUntil.get(provider)||0;providerCooldownUntil.set(provider,Math.max(prev,until));}
 
 const AGENT_MODES={
+ delegate:{label:"مجلس النماذج",prompt:"وزع المهمة بين أعضاء الفريق ثم راجع النتائج ولخص الاتفاق والخلاف."},
  normal:{label:"Normal",prompt:"تصرف كمساعد شخصي عام. أجب مباشرة، واستعمل البرمجة أو البحث أو الملفات فقط عندما يطلبها المستخدم أو تحتاجها الإجابة."},
  coding:{label:"Coding",prompt:"ركز على كتابة كود صحيح وقابل للصيانة. افهم المتطلبات، أنشئ/عدّل الملفات المطلوبة عبر Artifacts، وتحقق من الواجهات عند الحاجة. لا تنشر خارجيًا إلا بطلب صريح."},
  debug:{label:"Debug",prompt:"ركز على تشخيص السبب الجذري بأقل تغييرات ممكنة. اقرأ الملفات ذات الصلة فقط، أصلح الخطأ، ثم تحقق من النتيجة. لا تعيد كتابة المشروع بلا داعٍ."},
@@ -233,7 +234,7 @@ function idbDelete(name,id){return idbRequest(name,"readwrite",s=>s.delete(id),(
 function idbClear(name){return idbRequest(name,"readwrite",s=>s.clear(),()=>undefined)}
 async function loadState(){const s=await idbGet("kv","settings");if(s?.value)state={...structuredClone(defaults),...s.value,settings:{...defaults.settings,...s.value.settings},toolPermissions:{...defaults.toolPermissions,...s.value.toolPermissions}};else await saveState();state.settings.maxRounds=Math.min(12,Math.max(3,+state.settings.maxRounds||6));state.settings.maxOutputTokens=Math.min(32768,Math.max(2048,+state.settings.maxOutputTokens||12000));state.settings.historyLimit=Math.min(40,Math.max(8,+state.settings.historyLimit||20));state.settings.contextCharBudget=Math.min(900000,Math.max(120000,+state.settings.contextCharBudget||360000));state.settings.memoryEnabled=true;state.toolPermissions.memory_search="auto";state.toolPermissions.session_search="auto";state.toolPermissions.memory_save="auto";await saveState();let projects=await idbAll("projects");if(!projects.length){const pr={id:uid(),name:"Default",instructions:"",created:Date.now(),updated:Date.now()};await idbPut("projects",pr);projects=[pr]}if(!state.settings.activeProjectId||!projects.some(p=>p.id===state.settings.activeProjectId)){state.settings.activeProjectId=projects[0].id;await saveState()}let chats=await idbAll("chats");if(!chats.length){const c=newChatObject();await idbPut("chats",c);chats=[c]}for(const c of chats){let dirty=false;if(!c.projectId){c.projectId=state.settings.activeProjectId;dirty=true}if(!AGENT_MODES[c.agentMode]){c.agentMode=state.settings.defaultAgentMode||"normal";dirty=true}if(dirty)await idbPut("chats",c)}let projectChats=chats.filter(c=>c.projectId===state.settings.activeProjectId);if(!projectChats.length){const c=newChatObject();await idbPut("chats",c);projectChats=[c]}const saved=(await idbGet("kv","activeChat"))?.value;activeChatId=projectChats.some(c=>c.id===saved)?saved:projectChats.sort((a,b)=>b.updated-a.updated)[0].id;await setActiveChat(activeChatId);let skills=await idbAll("skills");for(const oldSkill of skills){const info=skillInfo(oldSkill);if(info.name.toLowerCase()==="frontend-quality"&&String(oldSkill.content||"").includes("Review or build modern frontend UI with accessibility"))await idbDelete("skills",oldSkill.id)}skills=await idbAll("skills");if(!skills.some(x=>skillInfo(x).name.toLowerCase()==="ui-ux-pro-max"))await saveSkillFromContent(UI_UX_PRO_MAX_SKILL,true);for(const core of CORE_AGENT_SKILLS){const name=skillInfo({content:core}).name.toLowerCase();if(!skills.some(x=>skillInfo(x).name.toLowerCase()===name))await saveSkillFromContent(core,true)}skills=await idbAll("skills");{const seenNames=new Map(),seenBodies=new Map();for(const sk of skills.sort((a,b)=>(b.updated||0)-(a.updated||0))){const info=skillInfo(sk),name=normalizeSkillName(info.name),body=String(sk.content||"").replace(/\s+/g," ").trim().toLowerCase(),sig=body.slice(0,12000);if((name&&seenNames.has(name))||(sig&&seenBodies.has(sig))){await idbDelete("skills",sk.id);continue}if(name)seenNames.set(name,sk.id);if(sig)seenBodies.set(sig,sk.id)}}for(const oldTool of await idbAll("customtools")){if(oldTool?.managedByEvolution||oldTool?.capabilityId)await idbDelete("customtools",oldTool.id)}if(state.settings.memoryConsolidation!==false)await consolidateMemories();await workspaceSnapshot(true)}
 async function saveState(){await idbPut("kv",{id:"settings",value:state})}
-async function setActiveChat(id){activeChatId=id;await idbPut("kv",{id:"activeChat",value:id});const c=await idbGet("chats",id);syncAgentModeSelector(c)}
+async function setActiveChat(id){if(delegateRunningChatId&&id!==delegateRunningChatId){toast("أوقف المجلس الحالي قبل الانتقال إلى محادثة أخرى.");return}activeChatId=id;await idbPut("kv",{id:"activeChat",value:id});const c=await idbGet("chats",id);syncAgentModeSelector(c)}
 
 /* ---------- local usage analytics ---------- */
 function roughTokenCount(value){const text=typeof value==="string"?value:JSON.stringify(value??"");return text?Math.max(1,Math.ceil(text.length/4)):0}
@@ -280,7 +281,7 @@ function markdownToPlain(text=""){const box=document.createElement("div");box.in
 async function copyRichMessage(text,html){const plain=markdownToPlain(text);try{if(navigator.clipboard&&window.ClipboardItem&&window.isSecureContext){const item=new ClipboardItem({"text/plain":new Blob([plain],{type:"text/plain"}),"text/html":new Blob([html],{type:"text/html"})});await navigator.clipboard.write([item]);return true}}catch{}return copyText(plain)}
 function activeChat(){return idbGet("chats",activeChatId)}
 function newChatObject(){return{id:uid(),projectId:state.settings.activeProjectId||null,title:"محادثة جديدة",messages:[],agentMode:state.settings.defaultAgentMode||"normal",parentChatId:null,branchFrom:null,created:Date.now(),updated:Date.now()}}
-function syncAgentModeSelector(chat){const el=$("#agentModeSelect");if(!el)return;const mode=chat?.agentMode||state.settings.defaultAgentMode||"normal";el.value=AGENT_MODES[mode]?mode:"normal";el.disabled=!!(chat?.messages||[]).some(m=>m.role==="user");el.title=el.disabled?"Agent Mode ثابت بعد بدء المحادثة — ابدأ محادثة جديدة لتغييره":"اختر Agent Mode قبل بدء المحادثة"}
+function syncAgentModeSelector(chat){syncDelegatePanel(chat);const el=$("#agentModeSelect");if(!el)return;const mode=chat?.agentMode||state.settings.defaultAgentMode||"normal";el.value=AGENT_MODES[mode]?mode:"normal";el.disabled=!!(chat?.messages||[]).some(m=>m.role==="user");el.title=el.disabled?"Agent Mode ثابت بعد بدء المحادثة — ابدأ محادثة جديدة لتغييره":"اختر Agent Mode قبل بدء المحادثة"}
 function shortTitle(t){return String(t||"").replace(/\s+/g," ").slice(0,48)||"محادثة جديدة"}
 function syncComposerState(){const c=document.querySelector(".composer"),p=$("#prompt");if(!c||!p)return;c.classList.toggle("has-content",!!p.value.trim());c.classList.toggle("has-attachments",pendingFiles.length>0);c.classList.toggle("is-focused",document.activeElement===p)}
 function autoGrow(){const x=$("#prompt");x.style.height="auto";x.style.height=Math.min(x.scrollHeight,170)+"px";syncComposerState()}
@@ -311,6 +312,7 @@ function renderActivitySources(list=[]){const box=$("#activitySources");if(!box)
 function responseFooter(m){if(m.role!=="assistant")return"";const sources=normalizeSources(m.sources||[]),metrics=m.metrics||{};const sourcesHtml=sources.length?`<button class="source-trigger" data-sources="${esc(m.id)}" aria-expanded="false"><span class="source-stack">${sources.slice(0,3).map((x,i)=>sourceAvatar(x,i)).join("")}</span><span>المصادر ${sources.length}</span></button><div class="source-popover" data-source-popover="${esc(m.id)}"><div class="source-popover-head">المصادر التي استُخدمت في البحث</div>${sources.map((x,i)=>`<a class="source-link" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${sourceAvatar(x,i)}<span class="source-link-copy"><span class="source-link-domain">${esc(x.domain)}</span><span class="source-link-url">${esc(x.url)}</span></span><span class="source-link-arrow">↗</span></a>`).join("")}</div>`:"";const timing=metrics.totalMs?`<span class="metric-chip" title="الإجمالي: ${formatDuration(metrics.totalMs)}">◷ ${metrics.thinkingMs?`${formatDuration(metrics.thinkingMs)} تفكير`:""}${metrics.responseMs?`${metrics.thinkingMs?" • ":""}${formatDuration(metrics.responseMs)} رد`:""}</span>`:"";return `<div class="response-footer">${sourcesHtml}${timing}</div>`}
 async function renderMessages({focusMessageId=null}={}){
  const c=await activeChat(),box=$("#messagesInner");$("#chatTitle").textContent=c?.title||"محادثة جديدة";box.replaceChildren();
+ if(!c?.messages?.length&&c?.agentMode==="delegate"){box.innerHTML=`<div class="welcome council-welcome"><div class="hero-orb">✦</div><h1>فريقك جاهز <span class="gradient">للنقاش.</span></h1><p>وزّع الأدوار من «تشكيل الفريق»، ثم اكتب المهمة. تابع وجهات النظر والمراجعات هنا حتى الخلاصة.</p><div class="suggestions"><button class="suggestion">ناقشوا أفضل تصميم لتجربة مستخدم موقع تعليمي</button><button class="suggestion">قارنوا بين ثلاثة حلول للمشكلة وحددوا المخاطر</button></div></div>`;return}
  if(!c?.messages?.length){box.innerHTML=`<div class="welcome"><div class="hero-orb">✦</div><h1>Agent واحد، <span class="gradient">قدرات أكثر.</span></h1><p>OpenCode Zen أو Gemini أو OpenRouter أو Hermes، مع Skills وذاكرة محلية وأدوات MCP اختيارية.</p><div class="suggestions"><button class="suggestion">ابنِ لي واجهة احترافية وطبّق Skill الـFrontend</button><button class="suggestion">حلل مشكلة برمجية وابحث عن أحدث توثيق عند الحاجة</button><button class="suggestion">احفظ تفضيل مهم في الذاكرة للمحادثات القادمة</button><button class="suggestion">اعرض الأدوات المتاحة وقرر أيها تحتاجه للمهمة</button></div></div>`;return}
  const frag=document.createDocumentFragment(),hydrate=[];
  for(const m of c.messages){if(m.role==="tool_event")continue;const el=document.createElement("div");el.className=`msg ${m.role}${m.pinned?" pinned":""}`;el.dataset.messageId=m.id;const att=(m.attachments||[]).length?`<div class="attachment-summary">${(m.attachments||[]).map(a=>`<span class="attachment-mini">${a.kind==="image"?"🖼️":a.kind==="pdf"?"📄":a.kind==="project"?"🗜️":"📎"} ${esc(a.name)}</span>`).join("")}</div>`:"";el.innerHTML=`<div class="avatar">${m.role==="user"?"أ":"✦"}</div><div class="bubble"><div class="meta">${m.role==="user"?"أنت":"AiWay"} • ${new Date(m.time||Date.now()).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"})}</div>${m.role==="assistant"&&m.activityTrace?.length?responseActivityHtml(m.activityTrace):""}<div class="msgtext" data-message-text="${m.id}">${renderMessageText(m)}</div>${att}<div class="message-bottom"><div class="message-actions"><button class="mini-action" data-copymsg="${m.id}">نسخ الرد</button>${m.role==="assistant"?`<button class="mini-action" data-retrymsg="${m.id}">↻ إعادة المحاولة</button>`:`<button class="mini-action" data-editmsg="${m.id}">✎ تعديل وإرسال</button>`}<button class="mini-action" data-branchmsg="${m.id}">↗ تفرع</button><button class="mini-action" data-pinmsg="${m.id}">${m.pinned?"★ مثبت":"☆ تثبيت"}</button></div>${responseFooter(m)}</div></div>`;frag.appendChild(el);hydrate.push([el,m])}
@@ -1718,6 +1720,7 @@ async function buildSystem(userText="",chat=null,toolPlan=null){
 async function addEvent(chat,name,status,preview=""){const last=chat.messages[chat.messages.length-1];if(last?.role==="tool_event"&&last.name===name&&!/تم|خطأ|done|error/i.test(last.status||"")&&/تم|خطأ|done|error/i.test(status||"")){last.status=status;last.preview=String(preview||last.preview||"").slice(0,600);last.time=Date.now()}else chat.messages.push({id:uid(),role:"tool_event",name,status,preview:String(preview||"").slice(0,600),time:Date.now()});chat.updated=Date.now();await idbPut("chats",chat);await appendSessionEvent("tool.event",{name,status,preview:String(preview||"").slice(0,600)},chat.id);if(currentHarnessRun){const done=/تم|done/i.test(status||""),failed=/خطأ|error/i.test(status||"");currentHarnessRun.phase=/validator|audit|review|evaluate|test/i.test(name)?"testing":"working";currentHarnessRun.status=failed?"working":currentHarnessRun.phase;if(done&&/sandbox_exec|code_execute/i.test(name))currentHarnessRun.commands.push({name,preview:String(preview||"").slice(0,300),time:Date.now()});await updateHarnessRun({phase:currentHarnessRun.phase,status:currentHarnessRun.status,commands:currentHarnessRun.commands})}pushRunActivity(name,status,preview);const v=toolVisual(name);setActivity(v.activity,preview||`${v.label} • ${activityStatusLabel(status)}`)}
 async function runAgent(chat,userText){
   const mode=chat?.agentMode||state.settings.defaultAgentMode||"normal";
+  if(mode==="delegate")return await runDelegateCouncil(chat,userText);
   if(shouldUseLeanConversation(userText,chat))return await runLeanConversation(chat,userText);
   // OpenAI-style model-owned routing: no deterministic web/tool execution before the model turn.
   // The model sees only the deferred tool_search entry point and may answer directly or discover capabilities.
@@ -1879,11 +1882,105 @@ function chooseSlash(name){const ta=$("#prompt"),pos=ta.selectionStart,before=ta
 async function replayFromMessage(messageId,{edit=false}={}){
  if(controller)return;const chat=await activeChat(),idx=(chat?.messages||[]).findIndex(m=>m.id===messageId);if(idx<0)return;const target=chat.messages[idx];let userIndex=target.role==="user"?idx:-1;if(target.role==="assistant")for(let i=idx-1;i>=0;i--){if(chat.messages[i].role==="user"){userIndex=i;break}}if(userIndex<0)return;const user=chat.messages[userIndex],nextText=edit?prompt("عدّل رسالتك ثم أعد إرسالها:",user.text||""):user.text;if(nextText===null)return;chat.messages=chat.messages.slice(0,userIndex);await idbPut("chats",chat);pendingFiles=(user.attachments||[]).map(x=>structuredClone(x));$("#prompt").value=String(nextText||user.text||"");renderAttachments();autoGrow();await renderMessages();await send();
 }
+/* ---------- Delegate Council: per-chat teams and observable discussion ---------- */
+let delegateDraft=null,delegateLoading=false,delegateRunningChatId=null;
+function defaultDelegateConfig(){return{rounds:2,moderator:0,members:[
+ {provider:state.settings.provider==='hermes'?'opencode':state.settings.provider,model:state.settings.provider==='hermes'?'':state.settings.model,role:'المخطط',task:'حلل الهدف واقترح حلًا عمليًا بخطوات واضحة.'},
+ {provider:state.settings.provider==='hermes'?'opencode':state.settings.provider,model:state.settings.provider==='hermes'?'':state.settings.model,role:'المراجع',task:'اختبر الافتراضات واكشف الأخطاء والمخاطر واقترح تحسينات.'},
+ {provider:state.settings.provider==='hermes'?'opencode':state.settings.provider,model:state.settings.provider==='hermes'?'':state.settings.model,role:'المبدع',task:'اقترح بدائل مبتكرة ووازن بين تجربة المستخدم وسهولة التنفيذ.'}
+]}}
+function syncDelegatePanel(chat){
+ const panel=$('#delegatePanel');if(!panel)return;
+ panel.hidden=chat?.agentMode!=='delegate';
+ const config=chat?.delegateConfig||defaultDelegateConfig();
+ $('#delegateSummary').textContent=`${config.members.length} أعضاء · ${config.rounds} جولات · ${config.members.length*config.rounds+1} طلبات`;
+ $('#delegateTeam').innerHTML=config.members.map((m,i)=>`<span class="council-chip"><b>${esc(m.role)}</b><span dir="ltr">${esc(m.model||'اختر موديلًا')}</span>${i===config.moderator?'<small>المنسّق</small>':''}</span>`).join('');
+ const run=chat?.delegateRun;renderDelegateRun(run?.status==='running'&&!delegateRunningChatId?{...run,status:'stopped',entries:run.entries.map(e=>e.status==='running'?{...e,status:'stopped',error:'انقطعت الجلسة. أرسل المهمة مجددًا لبدء نقاش جديد.'}:e)}:run);
+}
+function renderDelegateRun(run){
+ const box=$('#delegateTranscript');if(!box)return;
+ const entries=run?.entries||[];
+ const labels={running:'يتحدث الآن',done:'اكتمل',failed:'تعذّر الرد',stopped:'تم الإيقاف'};
+ box.replaceChildren();
+ for(const e of entries){const item=document.createElement('details');item.className=`council-turn ${e.status}`;item.open=e.status==='running'||e.status==='failed';
+ const summary=document.createElement('summary');summary.textContent=`${e.synthesis?'الخلاصة':`جولة ${e.round}`} · ${e.role} · ${e.model} — ${labels[e.status]||e.status}`;
+ const content=document.createElement('div');content.className='council-turn-text';content.textContent=e.text||'جارٍ الاتصال بالنموذج…';item.append(summary,content);
+ if(e.error){const error=document.createElement('p');error.className='council-error';error.textContent=e.error;item.append(error)}box.append(item)}
+ $('#delegateRunStatus').textContent=run?({running:'المجلس يناقش المهمة…',done:'اكتمل النقاش والخلاصة',failed:'توقف النقاش بسبب خطأ؛ المساهمات السابقة محفوظة',stopped:'تم إيقاف النقاش؛ المساهمات السابقة محفوظة'}[run.status]||''):'جهّز فريقك ثم أرسل المهمة من مربع المحادثة';
+ $('#delegateExport').disabled=!entries.length;
+}
+function renderDelegateEditor(){
+ const config=delegateDraft;if(!config)return;
+ $('#delegateRounds').value=config.rounds;
+ $('#delegateMembers').innerHTML=config.members.map((m,i)=>`<article class="council-member">
+ <div class="council-member-head"><span class="council-number">0${i+1}</span><b>عضو الفريق</b><button class="btn sm" type="button" data-council-remove="${i}" ${config.members.length<=2?'disabled':''} aria-label="حذف العضو ${i+1}">حذف</button></div>
+ <div class="grid2"><label>المزود<select class="field" data-council-field="provider" data-member="${i}">${AiWayDelegate.providers.map(p=>`<option value="${p}" ${p===m.provider?'selected':''}>${esc(providerLabel(p))}</option>`).join('')}</select></label>
+ <label>اسم الموديل<input class="field" dir="ltr" maxlength="160" data-council-field="model" data-member="${i}" list="councilModels${i}" value="${esc(m.model)}" placeholder="Model ID"><datalist id="councilModels${i}"></datalist></label></div>
+ <button class="btn sm council-load" type="button" data-council-load="${i}">↻ تحميل موديلات المزود</button>
+ <label>الدور<input class="field" maxlength="80" data-council-field="role" data-member="${i}" value="${esc(m.role)}"></label>
+ <label>مهمة النموذج<textarea class="field" maxlength="2000" rows="3" data-council-field="task" data-member="${i}">${esc(m.task)}</textarea></label>
+ </article>`).join('');
+ $('#delegateModerator').innerHTML=config.members.map((m,i)=>`<option value="${i}" ${config.moderator===i?'selected':''}>${i+1} — ${esc(m.role)}</option>`).join('');
+ $('#delegateAdd').disabled=config.members.length>=4;
+ $('#delegateEstimate').textContent=`هذه الخطة تستخدم ${config.members.length*config.rounds+1} طلبات للنماذج لكل رسالة، بخلاف محاولات إعادة الاتصال. التكلفة حسب مزودك.`;
+}
+async function openDelegateEditor(){if(controller){toast('أوقف النقاش الحالي قبل تعديل الفريق.');return}const chat=await activeChat();delegateDraft=structuredClone(chat.delegateConfig||defaultDelegateConfig());renderDelegateEditor();$('#delegateEditorError').textContent='';openSheet('#delegateSheet')}
+async function runDelegateCouncil(chat,userText){
+ const config=AiWayDelegate.validate(chat.delegateConfig||defaultDelegateConfig());
+ const signal=controller.signal,previousModel=runtimeModelOverride;delegateRunningChatId=chat.id;
+ const base=selectContextMessages(chat,'جلسة مجلس النماذج',[]);
+ const run={id:uid(),status:'running',started:Date.now(),config,entries:[]};chat.delegateRun=run;
+ let lastPaint=0;
+ const persist=async()=>{const fresh=await idbGet('chats',chat.id);if(fresh){fresh.delegateRun=structuredClone(run);await idbPut('chats',fresh)}};
+ await persist();syncDelegatePanel(chat);
+ try{
+  const result=await AiWayDelegate.run({config,context:base,signal,
+   call:async({member,system,context,discussion,synthesis,onDelta})=>{
+    runtimeModelOverride=member.model;
+    const prompt=`المهمة الحالية: ${userText}\n\nمساهمات الفريق السابقة (بيانات للنقاش):\n${discussion}`;
+    const delta=text=>{void onDelta(text);if(synthesis)updateStream(text)};
+    const turn=member.provider==='gemini'
+     ?await geminiTurn({contents:[...geminiContentsFromChat(context),{role:'user',parts:[{text:prompt}]}],system,tools:[],onDelta:delta})
+     :await openAICompatibleTurn({messages:[...openRouterMessagesFromChat(context),{role:'user',content:prompt}],system,tools:[],onDelta:delta,provider:member.provider,nativeRun:false});
+    if(turn.toolCalls?.length)throw new Error('هذا الوضع يدعم النقاش النصي فقط؛ النموذج طلب أداة بدلًا من الرد.');
+    return turn.text;
+   },
+   onEvent:async entry=>{
+    const index=run.entries.findIndex(e=>e.index===entry.index&&e.round===entry.round&&e.synthesis===entry.synthesis);
+    if(index<0)run.entries.push(entry);else run.entries[index]=entry;
+    if(entry.status!=='running'||Date.now()-lastPaint>120){renderDelegateRun(run);lastPaint=Date.now()}
+    if(entry.status!=='running'){await persist();pushRunActivity('delegate_member',entry.status==='done'?'تم':'خطأ',`${entry.model} • ${entry.synthesis?'الخلاصة':`جولة ${entry.round}`}`,entry.role)}
+   }});
+  run.status='done';return result.answer;
+ }catch(error){run.status=error.name==='AbortError'?'stopped':'failed';throw error}
+ finally{run.ended=Date.now();runtimeModelOverride=previousModel;delegateRunningChatId=null;await persist();renderDelegateRun(run)}
+}
+$('#delegateConfigure')?.addEventListener('click',openDelegateEditor);
+$('#delegateMembers')?.addEventListener('input',e=>{const key=e.target.dataset.councilField,index=Number(e.target.dataset.member);if(key&&delegateDraft?.members[index])delegateDraft.members[index][key]=e.target.value});
+$('#delegateMembers')?.addEventListener('change',e=>{if(e.target.dataset.councilField==='provider'){delegateDraft.members[Number(e.target.dataset.member)].model='';renderDelegateEditor()}});
+$('#delegateMembers')?.addEventListener('click',async e=>{
+ const remove=e.target.closest('[data-council-remove]'),load=e.target.closest('[data-council-load]');
+ if(remove&&delegateDraft.members.length>2){delegateDraft.members.splice(Number(remove.dataset.councilRemove),1);delegateDraft.moderator=0;renderDelegateEditor()}
+ if(load&&!delegateLoading){delegateLoading=true;load.disabled=true;load.textContent='جارٍ التحميل…';const index=Number(load.dataset.councilLoad),provider=delegateDraft.members[index].provider;
+  try{const response=await fetch(`/api/models?provider=${encodeURIComponent(provider)}`,{headers:appApiHeaders()});const data=await response.json();if(!response.ok)throw new Error(data.error?.message||data.error||'تعذر تحميل الموديلات');
+   if(delegateDraft.members[index]?.provider!==provider)return;
+   const list=$(`#councilModels${index}`);if(list){list.replaceChildren();for(const m of data.models||[]){const option=document.createElement('option');option.value=typeof m==='string'?m:m.id;option.label=typeof m==='string'?m:(m.label||m.id);list.append(option)}}load.textContent=`✓ ${data.models?.length||0} موديل — اكتب أو اختر الاسم`;
+  }catch(error){$('#delegateEditorError').textContent=error.message;load.textContent='إعادة تحميل الموديلات'}finally{delegateLoading=false;load.disabled=false}
+ }
+});
+$('#delegateRounds')?.addEventListener('change',e=>{delegateDraft.rounds=Number(e.target.value);renderDelegateEditor()});
+$('#delegateModerator')?.addEventListener('change',e=>{delegateDraft.moderator=Number(e.target.value)});
+$('#delegateAdd')?.addEventListener('click',()=>{if(delegateDraft.members.length>=4)return;delegateDraft.members.push({...delegateDraft.members[0],role:'الخبير',task:'قيّم قابلية التنفيذ واقترح خطوات التحقق.'});renderDelegateEditor()});
+$('#delegateSave')?.addEventListener('click',async()=>{try{if(controller)throw new Error('أوقف النقاش قبل تعديل الفريق.');const config=AiWayDelegate.validate(delegateDraft),chat=await activeChat();chat.delegateConfig=config;await idbPut('chats',chat);syncDelegatePanel(chat);closeSheets();toast('تم حفظ الفريق لهذه المحادثة')}catch(error){$('#delegateEditorError').textContent=error.message}});
+$('#delegateExport')?.addEventListener('click',async()=>{const chat=await activeChat(),run=chat?.delegateRun;if(!run?.entries?.length)return;const text=`# مجلس النماذج — ${chat.title}\n\nالحالة: ${run.status}\n\n`+run.entries.map(e=>`## ${e.synthesis?'الخلاصة':`الجولة ${e.round}`} — ${e.role}\n${e.provider} / ${e.model}\n\n${e.text}\n${e.error||''}`).join('\n\n---\n\n');const url=URL.createObjectURL(new Blob([text],{type:'text/markdown;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='aiway-council.md';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
+
+
 async function send(){
   const text=$("#prompt").value.trim();
   if(controller){abortActiveRequest();return}
   if(!text&&!pendingFiles.length)return;
   const c=await activeChat(),attachments=pendingFiles.map(cleanAttachment),userText=text||"حلل المرفقات";
+  if(c.agentMode==="delegate"){try{AiWayDelegate.validate(c.delegateConfig||defaultDelegateConfig());if(attachments.some(a=>a.kind!=="text"))throw new Error("مجلس النماذج للنقاش النصي حاليًا. الصق المحتوى المطلوب في الرسالة أو استخدم الوضع العادي لتحليل الملفات.")}catch(error){toast(error.message);return}}
   const userMessage={id:uid(),role:"user",text:userText,attachments,time:Date.now()};
   c.messages.push(userMessage);
   if(c.messages.filter(m=>m.role==="user").length===1)c.title=shortTitle(text||pendingFiles[0]?.name);
@@ -1895,12 +1992,12 @@ async function send(){
   try{
     ensureRuntimeModelDetails().catch(()=>{});
     if(state.settings.modelRouting==="auto")await addEvent(c,"model_router","تم",runtimeModelOverride||state.settings.model);
-    const complexRun=state.settings.orchestration!=="off"&&/(build|implement|refactor|debug|audit|research|compare|project|repository|review|feature|ابن|نفذ|اصلح|راجع|بحث|قارن|مشروع|ميزة)/i.test(userText);
+    const complexRun=c.agentMode!=="delegate"&&state.settings.orchestration!=="off"&&/(build|implement|refactor|debug|audit|research|compare|project|repository|review|feature|ابن|نفذ|اصلح|راجع|بحث|قارن|مشروع|ميزة)/i.test(userText);
     if(complexRun){await updateTodoPlan({goal:userText,steps:[{id:"inspect",text:"Inspect relevant context, skills and evidence",status:"doing"},{id:"execute",text:"Execute the requested work with the minimum necessary tools",status:"pending"},{id:"verify",text:"Verify requirements, errors and security before finalizing",status:"pending"}]});await addEvent(c,"todo_plan","تم","تم إنشاء خطة تنفيذ قابلة للتحديث لهذه المهمة")}
     const answer=await runAgent(c,userText),fresh=await activeChat(),runEndedAt=performance.now();
     completePendingActivities("اكتمل الرد النهائي");
     const msg={id:uid(),role:"assistant",text:answer,time:Date.now(),sources:normalizeSources(currentRunSources),searchMode:currentSearchRoute,activityTrace:structuredClone(currentRunActivity),inspector:await inspectorSnapshot(),metrics:{thinkingMs:firstTextAt?Math.max(0,firstTextAt-runStartedAt):Math.max(0,runEndedAt-runStartedAt),responseMs:firstTextAt?Math.max(0,runEndedAt-firstTextAt):0,totalMs:Math.max(0,runEndedAt-runStartedAt)}};
-    fresh.messages.push(msg);fresh.updated=Date.now();await idbPut("chats",fresh);await extractArtifactsFromMessage(msg,fresh);
+    if(c.agentMode==="delegate")msg.delegateRun=structuredClone(fresh.delegateRun);fresh.messages.push(msg);fresh.updated=Date.now();await idbPut("chats",fresh);if(c.agentMode!=="delegate")await extractArtifactsFromMessage(msg,fresh);
     if(complexRun&&state.settings.verifierEnabled!==false){try{const ev=await evaluateAgentRun({focus:"automatic-final-verification"});msg.eval={score:ev.score,checks:ev.checks,trajectoryId:ev.trajectoryId};currentAgentPlan&&currentAgentPlan.steps.forEach(x=>{if(x.id==="verify")x.status=ev.score>=70?"done":"blocked";else if(x.status!=="blocked")x.status="done"});fresh.agentPlan=currentAgentPlan;await idbPut("chats",fresh);await addEvent(fresh,"agent_evaluate",ev.score>=70?"تم":"خطأ",`Verifier score ${ev.score}/100`) }catch(e){await addEvent(fresh,"agent_evaluate","خطأ",e.message||String(e))}}
     const learningTrajectory=await recordLearningTrajectory({goal:userText,answer,score:msg.eval?.score||(!complexRun?75:0),complex:complexRun});
     if(complexRun&&state.settings.selfLearningSkills!==false&&(msg.eval?.score||0)>=Math.max(70,+state.settings.skillLearningThreshold||82))queueMicrotask(()=>proposeSkillFromTrajectory(learningTrajectory).catch(e=>console.warn("Self-learning proposal failed",e)));
@@ -1935,7 +2032,7 @@ async function renderHarnessWorkspace(){
 }
 async function showChangeReview(id){const r=await reviewChangeSet({id}),box=$("#changeReviewBody");if(!r.ok){toast(r.error);return}box.innerHTML=`<div class="change-summary">${r.summary.files} files • ${r.summary.added} added • ${r.summary.modified} modified • ${r.summary.deleted} deleted</div>${r.files.map(f=>`<div class="diff-file"><div class="diff-head"><b dir="ltr">${esc(f.name)}</b><span>${f.created?"ADDED":f.deleted?"DELETED":"MODIFIED"}</span></div><pre class="diff-view" dir="ltr">${esc(f.diff||"No textual diff")}</pre></div>`).join("")}`;openSheet("#changeReviewSheet")}
 async function renderProjects(){const items=(await idbAll("projects")).sort((a,b)=>b.updated-a.updated);$("#projectCount").textContent=items.length;const active=items.find(x=>x.id===state.settings.activeProjectId)||items[0];if(active){$("#projectPill").textContent=active.name;$("#activeProjectLabel").textContent=active.name}$("#projectsList").innerHTML=items.map(x=>`<div class="itemcard project-card ${x.id===state.settings.activeProjectId?"active":""}"><div class="itemtop"><div class="project-dot">${esc((x.name||"P").slice(0,1).toUpperCase())}</div><div class="grow"><div class="itemname">${esc(x.name)}</div><div class="itemdesc">${esc(x.instructions||"بدون تعليمات إضافية")}</div></div>${x.id===state.settings.activeProjectId?`<span class="badge ok">ACTIVE</span>`:""}</div><div class="itemactions"><button class="btn sm primary" data-useproject="${x.id}">فتح</button><button class="btn sm" data-editproject="${x.id}">تعديل</button></div></div>`).join("")}
-async function switchProject(id){state.settings.activeProjectId=id;await saveState();let chats=(await idbAll("chats")).filter(c=>c.projectId===id).sort((a,b)=>b.updated-a.updated);if(!chats.length){const c=newChatObject();await idbPut("chats",c);chats=[c]}await setActiveChat(chats[0].id);await renderAll();closeSheets()}
+async function switchProject(id){if(delegateRunningChatId){toast("أوقف المجلس قبل تغيير المشروع.");return}state.settings.activeProjectId=id;await saveState();let chats=(await idbAll("chats")).filter(c=>c.projectId===id).sort((a,b)=>b.updated-a.updated);if(!chats.length){const c=newChatObject();await idbPut("chats",c);chats=[c]}await setActiveChat(chats[0].id);await renderAll();closeSheets()}
 async function openProjectEditor(id=null){editingProjectId=id;const x=id?await idbGet("projects",id):null;$("#projectEditorTitle").textContent=x?"تعديل Project":"Project جديد";$("#projectName").value=x?.name||"";$("#projectInstructions").value=x?.instructions||"";$("#deleteProjectBtn").style.display=x?"inline-flex":"none";openSheet("#projectEditorSheet")}
 async function saveProject(){const old=editingProjectId?await idbGet("projects",editingProjectId):null,obj={id:editingProjectId||uid(),name:$("#projectName").value.trim()||"Untitled Project",instructions:$("#projectInstructions").value.trim(),created:old?.created||Date.now(),updated:Date.now()};await idbPut("projects",obj);if(!state.settings.activeProjectId){state.settings.activeProjectId=obj.id;await saveState()}await renderProjects();closeSheets();toast("تم حفظ المشروع")}
 
@@ -2089,9 +2186,9 @@ $("#settingsBtn").onclick=()=>openSheet("#settingsSheet");$("#projectPill").oncl
 $$('.close-sheet').forEach(b=>b.onclick=closeSheets);
 $$('.backdrop').forEach(b=>b.addEventListener("click",e=>{if(e.target===b)closeSheets()}));
 
-$("#newChatBtn").onclick=async()=>{const c=newChatObject();await idbPut("chats",c);await setActiveChat(c.id);await renderChats();await renderMessages();$("#sidebar").classList.remove("open")};
-$("#agentModeSelect").onchange=async e=>{const c=await activeChat();if(!c)return;const hasStarted=(c.messages||[]).some(m=>m.role==="user");if(hasStarted){syncAgentModeSelector(c);toast("Agent Mode يُختار قبل بدء المحادثة. ابدأ محادثة جديدة لتغييره.");return}const mode=AGENT_MODES[e.target.value]?e.target.value:"normal";c.agentMode=mode;c.updated=Date.now();state.settings.defaultAgentMode=mode;await idbPut("chats",c);await saveState();$("#activeInfo").textContent=`${AGENT_MODES[mode].label} • جاهز`;toast(`Agent Mode: ${AGENT_MODES[mode].label}`)};
-$("#chatList").onclick=async e=>{const c=e.target.closest("[data-chat]"),d=e.target.closest("[data-delchat]");if(c){await setActiveChat(c.dataset.chat);await renderChats();await renderMessages();$("#sidebar").classList.remove("open")}if(d){await idbDelete("chats",d.dataset.delchat);let all=(await idbAll("chats")).filter(x=>x.projectId===state.settings.activeProjectId);if(!all.length){const n=newChatObject();await idbPut("chats",n);all=[n]}if(activeChatId===d.dataset.delchat)await setActiveChat(all.sort((a,b)=>b.updated-a.updated)[0].id);await renderChats();await renderMessages()}};
+$("#newChatBtn").onclick=async()=>{if(delegateRunningChatId){toast("أوقف المجلس قبل فتح محادثة جديدة.");return}const c=newChatObject();await idbPut("chats",c);await setActiveChat(c.id);await renderChats();await renderMessages();$("#sidebar").classList.remove("open")};
+$("#agentModeSelect").onchange=async e=>{const c=await activeChat();if(!c)return;const hasStarted=(c.messages||[]).some(m=>m.role==="user");if(hasStarted){syncAgentModeSelector(c);toast("Agent Mode يُختار قبل بدء المحادثة. ابدأ محادثة جديدة لتغييره.");return}const mode=AGENT_MODES[e.target.value]?e.target.value:"normal";c.agentMode=mode;c.updated=Date.now();state.settings.defaultAgentMode=mode;await idbPut("chats",c);await saveState();syncDelegatePanel(c);await renderMessages();$("#activeInfo").textContent=`${AGENT_MODES[mode].label} • جاهز`;toast(`Agent Mode: ${AGENT_MODES[mode].label}`)};
+$("#chatList").onclick=async e=>{if(delegateRunningChatId){toast("أوقف المجلس قبل تغيير المحادثة أو حذفها.");return}const c=e.target.closest("[data-chat]"),d=e.target.closest("[data-delchat]");if(c){await setActiveChat(c.dataset.chat);await renderChats();await renderMessages();$("#sidebar").classList.remove("open")}if(d){await idbDelete("chats",d.dataset.delchat);let all=(await idbAll("chats")).filter(x=>x.projectId===state.settings.activeProjectId);if(!all.length){const n=newChatObject();await idbPut("chats",n);all=[n]}if(activeChatId===d.dataset.delchat)await setActiveChat(all.sort((a,b)=>b.updated-a.updated)[0].id);await renderChats();await renderMessages()}};
 $("#messages").addEventListener("scroll",()=>{if(controller){followStream=isNearBottom(90)}else followStream=isNearBottom(90);updateScrollButton()},{passive:true});
 $("#messages").addEventListener("pointerdown",()=>{if(controller&&!isNearBottom(70))followStream=false},{passive:true});
 $("#scrollBottomBtn").onclick=()=>scrollToBottom({smooth:true,force:true});
